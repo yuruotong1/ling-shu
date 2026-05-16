@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"d:\\\\develop\\\\trae_workspace\\\\ling-shu\")"
+    ]
+  }
+}
