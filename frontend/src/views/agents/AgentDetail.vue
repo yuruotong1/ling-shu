@@ -84,116 +84,30 @@
         </el-card>
       </el-tab-pane>
 
-      <!-- ── 返回格式（Response Format）── -->
-      <el-tab-pane name="format">
-        <template #label>
-          <span>
-            返回格式
-            <el-tag v-if="agent.response_format_locked" type="danger" size="small" style="margin-left:4px">已锁定</el-tag>
-            <el-tag v-else-if="agent.response_format" type="success" size="small" style="margin-left:4px">已配置</el-tag>
-          </span>
-        </template>
+      <el-tab-pane label="返回格式" name="format">
         <el-card>
-          <!-- 当前格式展示 -->
           <div style="margin-bottom:16px">
             <div class="label">当前返回格式</div>
-            <el-alert v-if="agent.response_format_locked" type="warning" :closable="false" style="margin-bottom:12px">
-              该 Agent 的返回格式已被管理员锁定，业务人员无法修改。
-            </el-alert>
             <div v-if="agent.response_format" class="schema-box">
               <pre>{{ JSON.stringify(agent.response_format, null, 2) }}</pre>
             </div>
             <el-empty v-else description="未配置返回格式，Agent 输出为自由文本" :image-size="60" />
           </div>
 
-          <!-- 管理员配置区 -->
           <template v-if="authStore.isAdmin">
             <el-divider>管理员配置区（仅 admin 可见）</el-divider>
-
-            <!-- 帮助文档 -->
-            <el-collapse style="margin-bottom:16px">
-              <el-collapse-item name="help">
-                <template #title>
-                  <span style="font-weight:600;color:#6366f1">📖 如何配置返回格式？（点击展开说明）</span>
-                </template>
-                <div class="help-doc">
-                  <p><b>什么是返回格式？</b><br>配置后，Agent 输出将被强制为 JSON 对象，不符合时自动重试（最多 2 次），适合与下游系统对接。</p>
-                  <p style="margin-top:8px"><b>实现方式：</b>提示词注入，无需模型原生支持，与 Qwen、DeepSeek、GPT、Claude 等所有模型兼容。</p>
-                  <p style="margin-top:8px"><b>可视化编辑器支持的字段类型（标量）：</b></p>
-                  <el-table :data="typeHelpRows" size="small" border style="margin-top:4px">
-                    <el-table-column prop="type" label="类型" width="100" />
-                    <el-table-column prop="desc" label="说明" />
-                    <el-table-column prop="example" label="示例值" width="120" />
-                  </el-table>
-                  <p style="margin-top:8px;color:#6366f1">如需数组或嵌套对象字段，直接在下方 JSON Schema 文本框手动编写即可。</p>
-                </div>
-              </el-collapse-item>
-            </el-collapse>
-
-            <!-- 快捷模板 -->
-            <div style="margin-bottom:16px">
-              <div class="label">快捷模板</div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap">
-                <el-button size="small" v-for="tpl in presetTemplates" :key="tpl.name"
-                  @click="applyTemplate(tpl)">{{ tpl.name }}</el-button>
-              </div>
-            </div>
-
-            <!-- 可视化字段编辑器 -->
-            <div style="margin-bottom:16px">
-              <div class="label">字段编辑器 <span style="font-weight:400;color:#94a3b8;font-size:12px">（添加字段后自动生成 JSON Schema）</span></div>
-              <el-table :data="formatFields" border size="small" style="margin-bottom:8px">
-                <el-table-column label="字段名" width="140">
-                  <template #default="{ row }">
-                    <el-input v-model="row.name" size="small" placeholder="field_name" @input="syncSchema" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="类型" width="120">
-                  <template #default="{ row }">
-                    <el-select v-model="row.type" size="small" @change="syncSchema">
-                      <el-option v-for="t in fieldTypes" :key="t" :label="t" :value="t" />
-                    </el-select>
-                  </template>
-                </el-table-column>
-                <el-table-column label="枚举值（逗号分隔，可选）" min-width="160">
-                  <template #default="{ row }">
-                    <el-input v-model="row.enum" size="small" placeholder="值1,值2,值3（仅 string 类型有效）"
-                      :disabled="row.type !== 'string'" @input="syncSchema" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="说明" min-width="140">
-                  <template #default="{ row }">
-                    <el-input v-model="row.description" size="small" @input="syncSchema" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="必填" width="70" align="center">
-                  <template #default="{ row }">
-                    <el-checkbox v-model="row.required" @change="syncSchema" />
-                  </template>
-                </el-table-column>
-                <el-table-column label="" width="60" align="center">
-                  <template #default="{ $index }">
-                    <el-button link type="danger" size="small" @click="removeField($index)">删除</el-button>
-                  </template>
-                </el-table-column>
-              </el-table>
-              <el-button size="small" @click="addField">+ 添加字段</el-button>
-            </div>
-
-            <!-- JSON Schema 原始编辑 -->
-            <el-form label-width="110px" size="small">
+            <el-form label-width="100px" size="small">
               <el-form-item label="JSON Schema">
-                <el-input v-model="formatForm.schemaText" type="textarea" :rows="10"
-                  placeholder='{"type":"object","properties":{...},"required":[]}'
-                  :status="schemaError ? 'error' : ''" @input="parseSchemaToFields" />
-                <div v-if="schemaError" style="color:#f56c6c;font-size:12px;margin-top:4px">{{ schemaError }}</div>
-              </el-form-item>
-              <el-form-item label="锁定格式">
-                <el-switch v-model="formatForm.locked" active-text="锁定（operator 不可改）" />
+                <el-input v-model="formatForm.schemaText" type="textarea" :rows="12"
+                  placeholder='{"type":"object","properties":{"intent":{"type":"string"}},"required":["intent"]}'
+                  :status="formatError ? 'error' : ''" />
+                <div v-if="formatError" style="color:#f56c6c;font-size:12px;margin-top:4px">{{ formatError }}</div>
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" :loading="formatSaving" @click="handleFormatSave">保存格式配置</el-button>
-                <el-button @click="clearFormat" style="margin-left:8px">清除格式（自由输出）</el-button>
+                <el-button @click="checkJson">校验 JSON</el-button>
+                <el-button @click="showTestSchema = true">测试 Schema</el-button>
+                <el-button type="primary" :loading="formatSaving" @click="handleFormatSave">保存</el-button>
+                <el-button @click="clearFormat">清除</el-button>
               </el-form-item>
             </el-form>
           </template>
@@ -284,6 +198,25 @@
       </div>
     </el-dialog>
 
+    <!-- 测试 Schema 对话框 -->
+    <el-dialog v-model="showTestSchema" title="测试 JSON Schema" width="600px">
+      <el-form label-width="100px">
+        <el-form-item label="Schema">
+          <div class="output-text" style="max-height:200px;overflow:auto">{{ formatForm.schemaText || '（未填写）' }}</div>
+        </el-form-item>
+        <el-form-item label="测试数据">
+          <el-input v-model="testSchemaData" type="textarea" :rows="6" placeholder='{"intent":"查询"}' />
+        </el-form-item>
+        <el-form-item v-if="testSchemaResult">
+          <div :style="{ color: testSchemaResult.startsWith('✅') ? '#67c23a' : '#f56c6c' }">{{ testSchemaResult }}</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showTestSchema = false">关闭</el-button>
+        <el-button type="primary" @click="doTestSchema">运行测试</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 创建Skill对话框 -->
     <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px" destroy-on-close>
       <el-form :model="skillForm" label-width="80px">
@@ -323,148 +256,23 @@ const vLoading = ref(false)
 const showTest = ref(false)
 const saving = ref(false)
 const testing = ref(false)
+
 const formatSaving = ref(false)
-const schemaError = ref('')
+const formatError = ref('')
+const formatForm = ref({ schemaText: '' })
+const showTestSchema = ref(false)
+const testSchemaData = ref('')
+const testSchemaResult = ref('')
+
 const testInput = ref('')
 const testMessages = ref<{role: string, content: string, loop_steps?: any[]}[]>([])
 const chatMessagesRef = ref<HTMLElement | null>(null)
+const testSessionId = ref<string | null>(null)
 const editForm = ref({ name: '', system_prompt: '', skill_ids: [] as string[], max_loops: 10 })
 const showCreateSkill = ref(false)
 const skillSaving = ref(false)
 const skillForm = ref({ name: '', description: '', prompt: '' })
-const formatForm = ref({ schemaText: '', locked: false })
 
-interface FormatField { name: string; type: string; enum: string; description: string; required: boolean }
-const fieldTypes = ['string', 'number', 'integer', 'boolean']
-const formatFields = ref<FormatField[]>([])
-
-const typeHelpRows = [
-  { type: 'string', desc: '文本字符串，可配置枚举限定取值范围', example: '"满意"' },
-  { type: 'number', desc: '小数数字（含整数）', example: '0.95' },
-  { type: 'integer', desc: '整数', example: '3' },
-  { type: 'boolean', desc: '布尔值', example: 'true / false' },
-]
-
-const presetTemplates = [
-  {
-    name: '文本分类',
-    fields: [
-      { name: 'label', type: 'string', enum: '', description: '分类标签', required: true },
-      { name: 'confidence', type: 'number', enum: '', description: '置信度（0-1）', required: true },
-      { name: 'reason', type: 'string', enum: '', description: '判断理由', required: false },
-    ]
-  },
-  {
-    name: '意图识别',
-    fields: [
-      { name: 'intent', type: 'string', enum: '查询,购买,投诉,咨询,其他', description: '意图类别', required: true },
-      { name: 'confidence', type: 'number', enum: '', description: '置信度（0-1）', required: true },
-      { name: 'reason', type: 'string', enum: '', description: '判断理由', required: true },
-    ]
-  },
-  {
-    name: '情感分析',
-    fields: [
-      { name: 'sentiment', type: 'string', enum: '正面,负面,中性', description: '情感倾向', required: true },
-      { name: 'score', type: 'number', enum: '', description: '情感强度（-1 到 1）', required: true },
-    ]
-  },
-  {
-    name: '评分结果',
-    fields: [
-      { name: 'score', type: 'integer', enum: '', description: '评分（1-5）', required: true },
-      { name: 'summary', type: 'string', enum: '', description: '评价摘要', required: true },
-    ]
-  },
-]
-
-const addField = () => formatFields.value.push({ name: '', type: 'string', enum: '', description: '', required: true })
-const removeField = (idx: number) => { formatFields.value.splice(idx, 1); syncSchema() }
-
-const applyTemplate = (tpl: any) => {
-  formatFields.value = tpl.fields.map((f: any) => ({ ...f }))
-  syncSchema()
-}
-
-const syncSchema = () => {
-  const props: any = {}
-  const required: string[] = []
-  for (const f of formatFields.value) {
-    if (!f.name) continue
-    const prop: any = { type: f.type }
-    if (f.description) prop.description = f.description
-    if (f.type === 'string' && f.enum) {
-      prop.enum = f.enum.split(',').map((s: string) => s.trim()).filter(Boolean)
-    }
-    props[f.name] = prop
-    if (f.required) required.push(f.name)
-  }
-  if (Object.keys(props).length === 0) { formatForm.value.schemaText = ''; return }
-  const schema = { type: 'object', properties: props, required }
-  formatForm.value.schemaText = JSON.stringify(schema, null, 2)
-  schemaError.value = ''
-}
-
-const parseSchemaToFields = () => {
-  if (!formatForm.value.schemaText.trim()) { formatFields.value = []; return }
-  try {
-    const schema = JSON.parse(formatForm.value.schemaText)
-    schemaError.value = ''
-    if (schema.type === 'object' && schema.properties) {
-      const required: string[] = schema.required || []
-      formatFields.value = Object.entries(schema.properties).map(([name, prop]: any) => ({
-        name,
-        type: prop.type || 'string',
-        enum: prop.enum ? prop.enum.join(',') : '',
-        description: prop.description || '',
-        required: required.includes(name),
-      }))
-    }
-  } catch {
-    schemaError.value = 'JSON 格式不正确，请检查'
-  }
-}
-
-const handleFormatSave = async () => {
-  schemaError.value = ''
-  let schema: any = null
-  if (formatForm.value.schemaText.trim()) {
-    try {
-      schema = JSON.parse(formatForm.value.schemaText)
-    } catch {
-      schemaError.value = 'JSON 格式不正确，请检查'
-      return
-    }
-  }
-  formatSaving.value = true
-  try {
-    await agentFormatApi.update(agent.value.id, {
-      response_format: schema,
-      response_format_locked: formatForm.value.locked,
-    })
-    ElMessage.success('返回格式已更新')
-    await load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '保存失败')
-  } finally {
-    formatSaving.value = false
-  }
-}
-
-const clearFormat = async () => {
-  formatForm.value.schemaText = ''
-  formatFields.value = []
-  formatSaving.value = true
-  try {
-    await agentFormatApi.update(agent.value.id, { response_format: null, response_format_locked: false })
-    ElMessage.success('已清除返回格式')
-    await load()
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.detail || '操作失败')
-  } finally {
-    formatSaving.value = false
-  }
-}
 
 const baseUrl = computed(() => `${window.location.protocol}//${window.location.hostname}:8000`)
 
@@ -574,11 +382,8 @@ const load = async () => {
     skill_ids: agent.value.skills?.map((s: any) => s.id) || [],
     max_loops: agent.value.max_loops,
   }
-  formatForm.value = {
-    schemaText: agent.value.response_format ? JSON.stringify(agent.value.response_format, null, 2) : '',
-    locked: agent.value.response_format_locked || false,
-  }
-  parseSchemaToFields()
+  formatForm.value.schemaText = agent.value.response_format ? JSON.stringify(agent.value.response_format, null, 2) : ''
+  formatError.value = ''
   vLoading.value = true
   const vr = await agentApi.versions(route.params.id as string)
   versions.value = vr.data
@@ -624,6 +429,83 @@ const handleDeleteVersion = async (row: any) => {
   }
 }
 
+const checkJson = () => {
+  formatError.value = ''
+  if (!formatForm.value.schemaText.trim()) return
+  try {
+    JSON.parse(formatForm.value.schemaText)
+    ElMessage.success('JSON 格式合法')
+  } catch {
+    formatError.value = 'JSON 格式不正确，请检查'
+  }
+}
+
+const handleFormatSave = async () => {
+  formatError.value = ''
+  let schema: any = null
+  if (formatForm.value.schemaText.trim()) {
+    try {
+      schema = JSON.parse(formatForm.value.schemaText)
+    } catch {
+      formatError.value = 'JSON 格式不正确，请检查'
+      return
+    }
+  }
+  formatSaving.value = true
+  try {
+    await agentFormatApi.update(agent.value.id, { response_format: schema })
+    ElMessage.success('返回格式已更新')
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '保存失败')
+  } finally {
+    formatSaving.value = false
+  }
+}
+
+const clearFormat = async () => {
+  formatForm.value.schemaText = ''
+  formatError.value = ''
+  formatSaving.value = true
+  try {
+    await agentFormatApi.update(agent.value.id, { response_format: null })
+    ElMessage.success('已清除返回格式')
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '操作失败')
+  } finally {
+    formatSaving.value = false
+  }
+}
+
+const doTestSchema = async () => {
+  testSchemaResult.value = ''
+  let schema: any
+  let data: any
+  try {
+    schema = JSON.parse(formatForm.value.schemaText)
+  } catch {
+    testSchemaResult.value = 'Schema JSON 格式错误'
+    return
+  }
+  try {
+    data = JSON.parse(testSchemaData.value)
+  } catch {
+    testSchemaResult.value = '测试数据 JSON 格式错误'
+    return
+  }
+  try {
+    const r = await agentFormatApi.test(agent.value.id, { schema, data })
+    if (r.data.valid) {
+      testSchemaResult.value = '✅ 验证通过'
+    } else {
+      testSchemaResult.value = '❌ ' + r.data.error
+    }
+  } catch (e: any) {
+    testSchemaResult.value = e.response?.data?.detail || '测试失败'
+  }
+}
+
 const runTest = async () => {
   if (!testInput.value.trim() || !agent.value) return
   const userContent = testInput.value.trim()
@@ -632,12 +514,13 @@ const runTest = async () => {
   testing.value = true
   try {
     const messages = testMessages.value.map(m => ({ role: m.role, content: m.content }))
-    const r = await agentApi.test(agent.value.id, { messages })
+    const r = await agentApi.test(agent.value.id, { messages, session_id: testSessionId.value })
     testMessages.value.push({
       role: 'assistant',
       content: r.data.output,
       loop_steps: r.data.loop_steps || []
     })
+    testSessionId.value = r.data.session_id || null
     setTimeout(() => {
       chatMessagesRef.value?.scrollTo({ top: chatMessagesRef.value.scrollHeight, behavior: 'smooth' })
     }, 50)
@@ -652,6 +535,7 @@ const runTest = async () => {
 
 const clearTest = () => {
   testMessages.value = []
+  testSessionId.value = null
 }
 
 const handleCreateSkill = async () => {
@@ -703,5 +587,5 @@ h2 { font-size: 20px; font-weight: 600; }
 .code-block { background: #1e293b; color: #e2e8f0; padding: 16px 40px 16px 16px; border-radius: 6px; font-family: 'Fira Code', 'Consolas', monospace; font-size: 13px; line-height: 1.6; overflow-x: auto; white-space: pre; margin: 0; }
 .schema-box { background: #1e1e2e; padding: 16px; border-radius: 6px; }
 .schema-box pre { color: #e2e8f0; font-family: monospace; font-size: 13px; white-space: pre-wrap; }
-.help-doc { font-size: 13px; line-height: 1.8; color: #374151; padding: 4px 0; }
+
 </style>

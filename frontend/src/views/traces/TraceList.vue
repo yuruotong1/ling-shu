@@ -212,33 +212,6 @@
             </el-collapse-item>
           </el-collapse>
 
-          <!-- 继续对话 & 优化 -->
-          <el-divider>继续对话 / 优化</el-divider>
-          <div style="display:flex;gap:8px;margin-bottom:12px">
-            <el-input v-model="continueMsg" type="textarea" :rows="2" placeholder="输入下一条消息，将本次调用延伸为多轮对话..." style="flex:1" />
-            <el-button type="primary" :loading="continuing" @click="doSingleContinue" style="align-self:flex-end">继续对话</el-button>
-          </div>
-          <div class="optimize-area">
-            <el-input v-model="optimizeInstruction" placeholder="额外优化要求（可选）" style="margin-bottom:8px" />
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <el-select v-model="optimizeTargetId" placeholder="选择要优化的 Agent 或 Skill" style="flex:1;min-width:180px" clearable>
-                <el-option-group label="Agent">
-                  <el-option v-for="a in allAgents" :key="a.id" :label="a.name" :value="a.id+'|agent'" />
-                </el-option-group>
-                <el-option-group label="Skill">
-                  <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id+'|skill'" />
-                </el-option-group>
-              </el-select>
-              <el-button type="warning" :loading="optimizing" @click="doOptimize(false)">
-                一键优化（生成新版本）
-              </el-button>
-            </div>
-            <div v-if="optimizeResult" class="optimize-result">
-              <el-alert type="success" :closable="false">
-                已生成新版本 v{{ optimizeResult.version }}：{{ optimizeResult.change_summary }}
-              </el-alert>
-            </div>
-          </div>
         </template>
       </div>
     </el-drawer>

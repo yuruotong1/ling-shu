@@ -159,6 +159,7 @@ export const userApi = {
 export const agentFormatApi = {
   get: (agentId: string) => api.get(`/agents/${agentId}/response-format`),
   update: (agentId: string, data: any) => api.put(`/agents/${agentId}/response-format`, data),
+  test: (agentId: string, data: { schema: any; data: any }) => api.post(`/agents/${agentId}/response-format/test`, data),
 }
 
 export default api

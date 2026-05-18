@@ -1,6 +1,6 @@
 # 灵枢引擎 — AI Agent 生产优化平台
 
-> 版本：v1.1.0 · 评估驱动优化的 AI Agent 生产平台
+> 版本：v1.2.0 · 评估驱动优化的 AI Agent 生产平台
 
 ## 一、平台概述
 
@@ -18,8 +18,7 @@
 - **效果可量化**：评估器给每次输出打分，改了什么、效果如何，一目了然
 - **自动迭代**：AI基于评估结果自动优化Skill，人工只需确认，大幅缩短优化周期
 - **模型自由**：不绑定任何模型生态，任意模型可接入对比
-- **结构化输出**：为 Skill 定义 JSON Schema，引擎自动校验并容错重试，接口返回格式零崩溃
-- **权限隔离**：研发人员锁定返回格式，业务人员只改业务提示词，互不干扰
+- **结构化输出**：为 Agent 定义 JSON Schema，引擎自动校验并容错重试，接口返回格式零崩溃
 - **对话即数据**：多轮对话满意后一键提交，自动触发评估→优化→上线的完整流水线
 
 ### 1.2 痛点与解决方案
@@ -28,7 +27,7 @@
 |-----|---------|
 | 配置耦合代码：提示词硬编码，修改需走完整发布流程 | **配置即时生效**：提示词独立托管，修改即时生效，无需代码发布 |
 | 效果黑盒化：改了Skill不知效果好坏，缺乏量化对比手段 | **评估即资产**：评估标准越迭代越精准，越用越值钱 |
-| 返回格式不稳：业务人员改提示词导致接口 JSON 崩溃 | **Format Response**：研发锁定 JSON Schema，引擎自动校验并重试，格式永不崩溃 |
+| 返回格式不稳：业务人员改提示词导致接口 JSON 崩溃 | **Format Response**：在系统提示词中定义 JSON Schema，引擎自动校验并重试，格式永不崩溃 |
 | 权责不清：非技术人员能随意修改底层返回格式 | **权限分离**：admin 定义/锁定格式，operator 只能改业务提示词 |
 | 优化靠人工：提示词调整依赖经验，迭代周期长 | **自动迭代**：AI基于评估结果自动优化Skill，人工只需确认 |
 | 对话数据浪费：测试结束即丢弃，无法沉淀为优化素材 | **触发式流水线**：满意对话一键提交，自动生成评估集→跑分→达标上线 |
@@ -39,18 +38,21 @@
 
 ### 2.1 JSON 结构化输出（Format Response）
 
-每个 Skill 可由研发人员配置一个 **JSON Schema** 作为返回格式约束。开启后：
+每个 Agent 可由研发人员配置一个 **JSON Schema** 作为返回格式约束。开启后：
 
 1. 引擎自动在系统提示词末尾追加格式要求，强制模型输出 JSON
 2. 收到响应后用 `jsonschema` 校验
 3. 校验失败时，把错误原因反馈给模型，最多**自动重试 2 次**
 4. 3 次均失败则降级返回原始文本（不抛异常，保证接口可用）
 
+**配置方式**：在 Agent 详情页的"返回格式"Tab 中，直接输入 JSON Schema 文本，支持 JSON 格式校验和示例数据测试。
+
 **接口**
 
 ```
-GET  /api/v1/skills/{id}/response-format          # 查看当前格式配置
-PUT  /api/v1/skills/{id}/response-format          # 设置 JSON Schema（Admin only）
+GET  /api/v1/agents/{id}/response-format          # 查看当前格式配置
+PUT  /api/v1/agents/{id}/response-format          # 设置 JSON Schema（Admin only）
+POST /api/v1/agents/{id}/response-format/test     # 测试 Schema（验证示例数据）
 ```
 
 请求体示例：
@@ -64,12 +66,9 @@ PUT  /api/v1/skills/{id}/response-format          # 设置 JSON Schema（Admin o
       "reason":     { "type": "string" }
     },
     "required": ["intent", "confidence", "reason"]
-  },
-  "response_format_locked": true
+  }
 }
 ```
-
-`response_format_locked=true` 后，operator 角色无法修改此字段。
 
 ---
 
@@ -79,8 +78,8 @@ PUT  /api/v1/skills/{id}/response-format          # 设置 JSON Schema（Admin o
 
 | 角色 | 权限 |
 |------|------|
-| **admin（管理员）** | 所有权限：用户管理、定义/锁定 response_format、删除 Skill/工具、版本回滚 |
-| **operator（业务人员）** | 可修改 Skill 的业务提示词（prompt）、创建/运行对话和实验；**不能**修改 response_format |
+| **admin（管理员）** | 所有权限：用户管理、定义 response_format、删除 Skill/工具、版本回滚 |
+| **operator（业务人员）** | 可修改 Agent/Skill 的业务提示词（prompt）、创建/运行对话和实验 |
 
 **认证接口**
 
@@ -287,9 +286,10 @@ DELETE /api/v1/conversations/{id}                  # 删除会话
 | Agent列表 | 展示所有Agent，显示名称、绑定Skill数、状态、版本 |
 | 创建Agent | 填写名称 → 绑定Skill组合 → 编写推理提示词 → 选择模型 → 设置最大循环次数 |
 | 推理提示词编辑 | 定义Agent的思考框架：如何分析问题、何时调用Skill、如何判断任务完成 |
-| 版本管理 | 配置变更自动版本化，支持回滚 |
-| 在线测试 | 内嵌测试区，可查看每轮"思考→行动→观察"的完整过程 |
+| 版本管理 | 配置变更自动版本化，支持回滚；版本历史可查看每版的系统提示词 |
+| 在线测试 | 多轮对话测试，支持 Enter 发送 / Shift+Enter 换行，可查看每轮"思考→行动→观察"的完整过程 |
 | 循环过程可视化 | 展示Agent的每一步推理和决策，便于调试和优化 |
+| 返回格式 | 支持 JSON Schema 文本配置，内置 JSON 校验和示例数据测试 |
 
 **调用方式**：
 
@@ -419,12 +419,12 @@ Skill本质上就是一个Markdown文件，加载到模型上下文中作为指�
 
 | 功能 | 说明 |
 |-----|------|
-| Skill列表 | 展示所有Skill，显示名称、绑定工具数、知识库文档数、版本、评估得分 |
-| 提示词编辑 | Markdown编辑器，支持变量高亮、实时预览 |
+| Skill列表 | 展示所有Skill，显示名称、绑定工具数、版本、评估得分 |
+| 创建/编辑 | 支持修改名称（保证唯一性）、描述、提示词、绑定工具/知识库 |
 | 知识库管理 | 管理该Skill专属知识库，上传/删除文档，查看检索结果 |
 | 外部工具绑定 | 从已注册工具中选择绑定，配置调用参数和条件 |
-| 内嵌测试 | 输入数据直接看效果，支持多模型对比 |
-| 版本管理 | 自动版本化、差异对比、A/B测试、一键回滚 |
+| 内嵌测试 | 输入数据直接看效果 |
+| 版本管理 | 自动版本化，版本历史可查看每版的提示词内容；支持回滚 |
 
 **版本管理策略**：
 - 每次保存自动生成新版本，保留完整历史
@@ -557,7 +557,7 @@ Skill本质上就是一个Markdown文件，加载到模型上下文中作为指�
 | 功能 | 说明 |
 |-----|------|
 | 多供应商支持 | OpenAI、Azure OpenAI、Anthropic (Claude)、Ollama/vLLM、自定义OpenAI兼容endpoint |
-| 配置项 | API Endpoint、API Key、默认参数（temperature、max_tokens等） |
+| 配置项 | API Endpoint、API Key（编辑时可见完整内容）、默认参数（temperature、max_tokens等） |
 | 路由策略 | 支持主备自动切换 |
 | 状态监控 | 实时显示各模型连接状态和调用量 |
 

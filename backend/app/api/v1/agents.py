@@ -106,11 +106,10 @@ async def delete_agent(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     return {"ok": True}
 
 
-# ── Response Format（管理员专属）────────────────────────────────────
+# ── Response Format ────────────────────────────────────────────────────
 
 @router.get("/{agent_id}/response-format")
 async def get_response_format(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
-    """获取 Agent 的结构化返回格式配置。"""
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if agent is None:
@@ -129,7 +128,6 @@ async def update_response_format(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    """设置/更新 Agent 的返回 JSON Schema（仅管理员）。"""
     result = await db.execute(select(Agent).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if agent is None:
@@ -143,7 +141,6 @@ async def update_response_format(
             raise HTTPException(400, f"无效的 JSON Schema：{e.message}")
         agent.response_format = body.response_format
     elif body.response_format is None and body.response_format_locked is None:
-        # 清除格式时 response_format 显式传 None
         agent.response_format = None
 
     if body.response_format_locked is not None:
@@ -155,6 +152,28 @@ async def update_response_format(
         "response_format": agent.response_format,
         "response_format_locked": agent.response_format_locked,
     }
+
+
+@router.post("/{agent_id}/response-format/test")
+async def test_response_format(
+    agent_id: uuid.UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """用示例数据测试 JSON Schema 是否合法并能否通过验证。"""
+    schema = body.get("schema")
+    data = body.get("data")
+    if schema is None:
+        raise HTTPException(400, "Schema 不能为空")
+    import jsonschema
+    try:
+        jsonschema.validate(data, schema)
+        return {"valid": True}
+    except jsonschema.ValidationError as e:
+        return {"valid": False, "error": e.message}
+    except jsonschema.SchemaError as e:
+        return {"valid": False, "error": f"无效的 JSON Schema：{e.message}"}
 
 
 @router.post("/{agent_id}/versions/{version_id}/set-active", response_model=AgentOut)
@@ -262,7 +281,39 @@ async def test_agent(agent_id: uuid.UUID, body: AgentTestRequest, db: AsyncSessi
     if mc is None:
         raise HTTPException(500, "No model config available")
 
+    session_id = body.session_id
+    turn_index = 0
+
+    if session_id:
+        # 基于已有会话继续
+        turns_result = await db.execute(
+            select(Trace).where(Trace.session_id == session_id).order_by(Trace.turn_index)
+        )
+        turns = turns_result.scalars().all()
+        if turns:
+            turn_index = max(t.turn_index for t in turns) + 1
+            # 重建多轮消息历史
+            history: list[dict] = []
+            for t in turns:
+                user_msg = next((m for m in reversed(t.input or []) if m.get("role") == "user"), None)
+                history.append({"role": "user", "content": user_msg.get("content", "") if user_msg else ""})
+                history.append({"role": "assistant", "content": t.output})
+            # 加上当前最新消息
+            last_user_msg = next((m for m in reversed(body.messages) if m.get("role") == "user"), None)
+            if last_user_msg:
+                history.append({"role": "user", "content": last_user_msg.get("content", "")})
+            output, trace_id, loop_steps = await agent_runner.run_agent(
+                agent=agent, mc=mc, messages=history, db=db,
+                session_id=session_id, turn_index=turn_index,
+            )
+            return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}
+
+    # 新建会话
+    if session_id is None:
+        session_id = uuid.uuid4()
+
     output, trace_id, loop_steps = await agent_runner.run_agent(
-        agent=agent, mc=mc, messages=body.messages, db=db
+        agent=agent, mc=mc, messages=body.messages, db=db,
+        session_id=session_id, turn_index=turn_index,
     )
-    return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps}
+    return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}

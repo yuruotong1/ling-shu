@@ -8,16 +8,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "vue": "^3.4.0",
-    "vue-router": "^4.3.0",
-    "pinia": "^2.1.7",
-    "element-plus": "^2.8.0",
+    "@codemirror/lang-markdown": "^6.2.5",
+    "@codemirror/state": "^6.4.0",
+    "@codemirror/theme-one-dark": "^6.1.2",
+    "@codemirror/view": "^6.30.0",
     "@element-plus/icons-vue": "^2.3.1",
     "axios": "^1.7.0",
-    "@codemirror/view": "^6.30.0",
-    "@codemirror/state": "^6.4.0",
-    "@codemirror/lang-markdown": "^6.2.5",
-    "@codemirror/theme-one-dark": "^6.1.2"
+    "element-plus": "^2.8.0",
+    "pinia": "^2.1.7",
+    "vanilla-jsoneditor": "^0.23.8",
+    "vue": "^3.4.0",
+    "vue-router": "^4.3.0"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.0",

@@ -4,7 +4,6 @@ from pydantic import BaseModel, field_validator
 
 
 class ResponseFormatUpdate(BaseModel):
-    """管理员专用：设置/更新 Agent 的结构化返回 JSON Schema"""
     response_format: dict | None = None
     response_format_locked: bool | None = None
 
@@ -82,3 +81,4 @@ class AgentVersionOut(BaseModel):
 class AgentTestRequest(BaseModel):
     messages: list[dict]
     model_config_id: uuid.UUID | None = None
+    session_id: uuid.UUID | None = None
