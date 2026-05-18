@@ -7,6 +7,7 @@ from app.models.dataset import EvaluationSet, EvaluationItem
 from app.models.experiment import Experiment, ExperimentResult
 from app.models.trace import Trace
 from app.models.kb import KbDocument, KbChunk, KbData
+from app.models.user import User
 
 __all__ = [
     "ModelConfig",
@@ -18,4 +19,5 @@ __all__ = [
     "Experiment", "ExperimentResult",
     "Trace",
     "KbDocument", "KbChunk", "KbData",
+    "User",
 ]

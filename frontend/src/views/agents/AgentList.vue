@@ -51,9 +51,12 @@
             placeholder="定义Agent的角色、推理规则、可用Skill及适用场景..." />
         </el-form-item>
         <el-form-item label="绑定Skill">
-          <el-select v-model="form.skill_ids" multiple placeholder="选择Skill" style="width:100%">
-            <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id" />
-          </el-select>
+          <div style="display:flex;gap:8px">
+            <el-select v-model="form.skill_ids" multiple placeholder="选择Skill" style="flex:1">
+              <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id" />
+            </el-select>
+            <el-button @click="showCreateSkill = true"><el-icon><Plus /></el-icon> 创建Skill</el-button>
+          </div>
         </el-form-item>
         <el-form-item label="模型配置">
           <el-select v-model="form.model_config_id" clearable placeholder="选择模型配置" style="width:100%">
@@ -67,6 +70,25 @@
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
         <el-button type="primary" @click="handleCreate" :loading="saving">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 创建Skill对话框 -->
+    <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px">
+      <el-form :model="skillForm" label-width="80px">
+        <el-form-item label="名称" required>
+          <el-input v-model="skillForm.name" placeholder="e.g. 用例生成" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="skillForm.description" placeholder="Skill功能描述" />
+        </el-form-item>
+        <el-form-item label="提示词" required>
+          <el-input v-model="skillForm.prompt" type="textarea" :rows="6" placeholder="提示词内容..." />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateSkill = false">取消</el-button>
+        <el-button type="primary" @click="handleCreateSkill" :loading="skillSaving">创建</el-button>
       </template>
     </el-dialog>
   </div>
@@ -83,7 +105,10 @@ const allModelConfigs = ref<any[]>([])
 const loading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
-const form = ref({ name: '', description: '', system_prompt: '', skill_ids: [], model_config_id: null, max_loops: 10 })
+const showCreateSkill = ref(false)
+const skillSaving = ref(false)
+const form = ref({ name: '', description: '', system_prompt: '', skill_ids: [] as string[], model_config_id: null as string | null, max_loops: 10 })
+const skillForm = ref({ name: '', description: '', prompt: '' })
 
 const load = async () => {
   loading.value = true
@@ -117,6 +142,23 @@ const handleDelete = async (row: any) => {
   await agentApi.delete(row.id)
   ElMessage.success('已删除')
   await load()
+}
+
+const handleCreateSkill = async () => {
+  skillSaving.value = true
+  try {
+    const r = await skillApi.create({ ...skillForm.value, tool_ids: [], kb_namespaces: [] })
+    ElMessage.success('创建成功')
+    showCreateSkill.value = false
+    skillForm.value = { name: '', description: '', prompt: '' }
+    const sr = await skillApi.list()
+    allSkills.value = sr.data
+    form.value.skill_ids.push(r.data.id)
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '创建失败')
+  } finally {
+    skillSaving.value = false
+  }
 }
 
 onMounted(load)

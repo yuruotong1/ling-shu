@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, DateTime, Integer, Float, ForeignKey, Table, Column, JSON, text
+from sqlalchemy import String, Text, Boolean, DateTime, Integer, Float, ForeignKey, Table, Column, JSON, text  # noqa: F401
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid
 from app.core.database import Base
@@ -27,6 +27,8 @@ class Skill(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     kb_namespaces: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    # 固定线上版本；None 表示始终使用最新（skill.prompt）
+    active_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
 
     tools = relationship("Tool", secondary=skill_tools, lazy="selectin", uselist=True)
     versions: Mapped[list["SkillVersion"]] = relationship("SkillVersion", back_populates="skill", order_by="SkillVersion.version.desc()")

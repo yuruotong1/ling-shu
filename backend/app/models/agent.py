@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, Boolean, DateTime, Integer, ForeignKey, Table, Column, JSON
+from sqlalchemy import String, Text, Boolean, DateTime, Integer, Float, ForeignKey, Table, Column, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid
 from app.core.database import Base
@@ -25,6 +25,10 @@ class Agent(Base):
     model_config_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("model_configs.id"), nullable=True)
     model_override: Mapped[str | None] = mapped_column(String(100), nullable=True)
     risk_control: Mapped[dict] = mapped_column(JSON, default=dict)
+    response_format: Mapped[dict | None] = mapped_column(JSON, nullable=True, default=None)
+    response_format_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # 固定线上版本；None 表示始终使用最新（agent.system_prompt）
+    active_version_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
     status: Mapped[str] = mapped_column(String(20), default="active")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

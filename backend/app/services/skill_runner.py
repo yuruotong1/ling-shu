@@ -80,6 +80,7 @@ async def run_skill(
     func_defs = func_defs or None
 
     max_tool_loops = 5
+    last_content = ""
     for _ in range(max_tool_loops):
         result = await model_client.chat_completion(
             mc=mc,
@@ -92,7 +93,7 @@ async def run_skill(
         msg = choice["message"]
         finish_reason = choice.get("finish_reason", "stop")
 
-        if finish_reason == "tool_calls" or (msg.get("tool_calls")):
+        if finish_reason == "tool_calls" or msg.get("tool_calls"):
             full_messages.append(msg)
             for tc in msg.get("tool_calls", []):
                 fn_name = tc["function"]["name"]
@@ -115,6 +116,7 @@ async def run_skill(
                     "content": tool_result,
                 })
         else:
-            return msg.get("content", "")
+            last_content = msg.get("content", "")
+            break
 
-    return full_messages[-1].get("content", "") if full_messages else ""
+    return last_content

@@ -40,6 +40,7 @@ class SkillOut(BaseModel):
     eval_score: float | None
     tools: list[ToolBrief] = []
     kb_namespaces: list[str] = []
+    active_version_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 

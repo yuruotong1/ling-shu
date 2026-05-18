@@ -1,4 +1,6 @@
-# 灵枢引擎 — AI Agent 生产优化平台技术框架设计
+# 灵枢引擎 — AI Agent 生产优化平台
+
+> 版本：v1.1.0 · 评估驱动优化的 AI Agent 生产平台
 
 ## 一、平台概述
 
@@ -16,6 +18,9 @@
 - **效果可量化**：评估器给每次输出打分，改了什么、效果如何，一目了然
 - **自动迭代**：AI基于评估结果自动优化Skill，人工只需确认，大幅缩短优化周期
 - **模型自由**：不绑定任何模型生态，任意模型可接入对比
+- **结构化输出**：为 Skill 定义 JSON Schema，引擎自动校验并容错重试，接口返回格式零崩溃
+- **权限隔离**：研发人员锁定返回格式，业务人员只改业务提示词，互不干扰
+- **对话即数据**：多轮对话满意后一键提交，自动触发评估→优化→上线的完整流水线
 
 ### 1.2 痛点与解决方案
 
@@ -23,9 +28,149 @@
 |-----|---------|
 | 配置耦合代码：提示词硬编码，修改需走完整发布流程 | **配置即时生效**：提示词独立托管，修改即时生效，无需代码发布 |
 | 效果黑盒化：改了Skill不知效果好坏，缺乏量化对比手段 | **评估即资产**：评估标准越迭代越精准，越用越值钱 |
-| 优化靠经验：不知道差在哪里，只能凭感觉调参 | **极轻接入**：调用端零改造，OpenAI SDK直连，原有调用方式不变 |
+| 返回格式不稳：业务人员改提示词导致接口 JSON 崩溃 | **Format Response**：研发锁定 JSON Schema，引擎自动校验并重试，格式永不崩溃 |
+| 权责不清：非技术人员能随意修改底层返回格式 | **权限分离**：admin 定义/锁定格式，operator 只能改业务提示词 |
 | 优化靠人工：提示词调整依赖经验，迭代周期长 | **自动迭代**：AI基于评估结果自动优化Skill，人工只需确认 |
-| 质量不可控："达标"难以界定，每个人判断不同 | **模型自由**：任意模型可接入，评估时纳入模型维度对比 |
+| 对话数据浪费：测试结束即丢弃，无法沉淀为优化素材 | **触发式流水线**：满意对话一键提交，自动生成评估集→跑分→达标上线 |
+
+---
+
+## 二、v1.1 新增能力
+
+### 2.1 JSON 结构化输出（Format Response）
+
+每个 Skill 可由研发人员配置一个 **JSON Schema** 作为返回格式约束。开启后：
+
+1. 引擎自动在系统提示词末尾追加格式要求，强制模型输出 JSON
+2. 收到响应后用 `jsonschema` 校验
+3. 校验失败时，把错误原因反馈给模型，最多**自动重试 2 次**
+4. 3 次均失败则降级返回原始文本（不抛异常，保证接口可用）
+
+**接口**
+
+```
+GET  /api/v1/skills/{id}/response-format          # 查看当前格式配置
+PUT  /api/v1/skills/{id}/response-format          # 设置 JSON Schema（Admin only）
+```
+
+请求体示例：
+```json
+{
+  "response_format": {
+    "type": "object",
+    "properties": {
+      "intent":     { "type": "string", "enum": ["查询","购买","投诉","咨询","其他"] },
+      "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+      "reason":     { "type": "string" }
+    },
+    "required": ["intent", "confidence", "reason"]
+  },
+  "response_format_locked": true
+}
+```
+
+`response_format_locked=true` 后，operator 角色无法修改此字段。
+
+---
+
+### 2.2 权限与职责隔离
+
+平台引入**两级角色**：
+
+| 角色 | 权限 |
+|------|------|
+| **admin（管理员）** | 所有权限：用户管理、定义/锁定 response_format、删除 Skill/工具、版本回滚 |
+| **operator（业务人员）** | 可修改 Skill 的业务提示词（prompt）、创建/运行对话和实验；**不能**修改 response_format |
+
+**认证接口**
+
+```
+POST /api/v1/auth/login       # 登录，返回 JWT Token
+GET  /api/v1/auth/me          # 当前登录用户信息
+```
+
+登录示例：
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username": "admin", "password": "admin123"}'
+# => { "access_token": "eyJ...", "role": "admin", "username": "admin" }
+```
+
+**默认账号**（首次启动自动创建）
+
+| 用户名 | 密码 | 角色 |
+|--------|------|------|
+| admin | admin123 | admin |
+| operator | operator123 | operator |
+
+**用户管理接口（Admin only）**
+
+```
+GET    /api/v1/users              # 用户列表
+POST   /api/v1/users              # 新建用户
+PUT    /api/v1/users/{id}         # 修改用户（密码/角色/状态）
+DELETE /api/v1/users/{id}         # 删除用户
+```
+
+---
+
+### 2.3 触发式版本控制与评估流水线
+
+**核心理念**：多轮对话是最廉价的高质量数据来源。用户与 Agent/Skill 交互满意后，一键"提交"，平台自动完成从数据沉淀到上线的全流程。
+
+**流水线步骤**
+
+```
+用户确认满意并提交对话
+    │
+    ▼
+Step 1：从对话 user↔assistant 配对中生成评估集（EvaluationSet + EvaluationItem）
+    │
+    ▼
+Step 2：AI 自动优化 Skill 提示词（基于对话内容和失败样本），生成新版本（SkillVersion）
+    │
+    ▼
+Step 3：创建实验（Experiment），调用现有评估器对新版本跑分
+    │
+    ▼
+Step 4：avg_score ≥ auto_deploy_threshold（默认 0.75）→ 自动上线新版本
+        否则保留 draft，人工决策
+```
+
+**对话接口**
+
+```
+POST /api/v1/conversations                         # 创建会话（绑定 agent_id 或 skill_id）
+POST /api/v1/conversations/{id}/messages           # 追加消息（role: user/assistant）
+GET  /api/v1/conversations/{id}                    # 查看会话详情
+POST /api/v1/conversations/{id}/submit             # 提交并触发流水线
+GET  /api/v1/conversations                         # 会话列表
+DELETE /api/v1/conversations/{id}                  # 删除会话
+```
+
+提交请求示例：
+```json
+{
+  "run_pipeline": true,
+  "auto_deploy_threshold": 0.75,
+  "message_updates": [
+    { "message_id": "uuid-of-assistant-turn", "reference_output": "标准答案文本" }
+  ]
+}
+```
+
+提交后，`GET /conversations/{id}` 中的 `pipeline_result` 字段实时反映流水线结果：
+```json
+{
+  "eval_set_id": "...",
+  "experiment_id": "...",
+  "avg_score": 0.82,
+  "pass_rate": 0.90,
+  "auto_deployed": true,
+  "deployed_version": 3
+}
+```
 
 ---
 
@@ -798,6 +943,156 @@ response2 = client.chat.completions.create(
 反馈提交 → 提炼优化建议（用户补充了什么、改了什么）
          → 纳入评估集（完整对话链作为评估样本）
          → 触发自动迭代（AI修改Skill → 跑评估 → 人工确认发布）
+```
+
+---
+
+## 八、部署指南
+
+### 8.1 目录结构
+
+```
+ling-shu/
+├── backend/              # FastAPI 后端
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── app/
+├── frontend/             # Vue3 前端
+│   ├── Dockerfile
+│   └── src/
+├── docker-compose.yml    # 一键部署编排
+├── nginx.conf            # 反向代理配置
+└── .env                  # 环境变量（不提交到 Git）
+```
+
+### 8.2 方式一：Docker Compose（推荐）
+
+**前置条件**：Docker 20.10+，Docker Compose v2
+
+**步骤**：
+
+```bash
+# 1. 克隆项目
+git clone <repo-url>
+cd ling-shu
+
+# 2. 复制并修改环境变量
+cp .env.example .env
+# 必改项：
+#   SECRET_KEY       → 随机字符串（openssl rand -hex 32）
+#   PLATFORM_API_KEY → 对外暴露的 API Key
+
+# 3. 启动全部服务
+docker-compose up -d --build
+
+# 4. 查看启动状态
+docker-compose ps
+docker-compose logs -f backend
+```
+
+**访问地址**：
+
+| 地址 | 说明 |
+|------|------|
+| http://localhost | 管理界面（Nginx 入口） |
+| http://localhost/docs | FastAPI 交互式文档 |
+| http://localhost/api/v1/... | 管理 API |
+| http://localhost/v1/chat/completions | OpenAI 兼容接口 |
+
+**停止/重启**：
+
+```bash
+docker-compose down          # 停止，保留数据卷
+docker-compose down -v       # 停止并删除数据（慎用）
+docker-compose restart backend   # 单独重启后端
+```
+
+### 8.3 方式二：本地开发模式
+
+无需 Docker，适合开发调试。数据库使用内置 SQLite，无需额外安装。
+
+```bash
+# ── 后端 ──────────────────────────────────────────
+cd backend
+pip install -r requirements.txt
+
+# 启动（SQLite 自动建表 + 种子数据）
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+
+# ── 前端（新终端）────────────────────────────────
+cd frontend
+npm install
+npm run dev
+# 访问 http://localhost:5173
+```
+
+### 8.4 环境变量说明
+
+`.env` 文件完整配置说明：
+
+```dotenv
+# 数据库（Docker 模式用 PostgreSQL，本地开发默认 SQLite 无需配置）
+DATABASE_URL=postgresql+asyncpg://lingzhu:lingzhu123@postgres:5432/lingzhu
+SYNC_DATABASE_URL=postgresql://lingzhu:lingzhu123@postgres:5432/lingzhu
+
+# Redis（Docker 模式使用，本地开发可留空）
+REDIS_URL=redis://redis:6379/0
+
+# 安全密钥（生产环境必须替换为随机字符串）
+SECRET_KEY=dev-secret-key-please-change-in-production
+
+# 环境标识
+APP_ENV=development   # development | production
+
+# 允许的前端域名（多个用逗号分隔）
+CORS_ORIGINS=http://localhost,http://localhost:3000,http://localhost:5173
+
+# 外部调用 OpenAI 兼容接口所需的 API Key
+PLATFORM_API_KEY=sk-platform-dev
+```
+
+> **生产环境**：`SECRET_KEY` 请使用 `openssl rand -hex 32` 生成，`PLATFORM_API_KEY` 更换为强密钥。
+
+### 8.5 网络架构
+
+```
+用户浏览器 / 业务系统
+       │
+       ▼
+  Nginx :80
+  ├── /v1/*    → backend:8000  （OpenAI 兼容接口，需 PLATFORM_API_KEY）
+  ├── /api/*   → backend:8000  （管理 API，需 JWT Token）
+  ├── /docs    → backend:8000  （API 文档）
+  └── /*       → frontend:80   （Vue3 前端静态文件）
+       │
+  backend:8000 (FastAPI)
+  ├── SQLite（开发）或 PostgreSQL（生产）
+  └── Redis（可选，用于缓存）
+```
+
+### 8.6 数据持久化
+
+Docker Compose 模式下，数据通过具名卷持久化：
+
+```yaml
+volumes:
+  postgres_data:   # PostgreSQL 数据
+  redis_data:      # Redis 数据
+```
+
+本地开发模式下，数据存储在 `backend/lingzhu.db`（SQLite 文件）。
+
+### 8.7 升级
+
+```bash
+# 拉取新代码
+git pull
+
+# 重新构建并重启
+docker-compose up -d --build
+
+# 查看后端日志确认启动成功
+docker-compose logs -f backend
 ```
 
 ---

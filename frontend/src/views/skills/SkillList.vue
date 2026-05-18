@@ -111,10 +111,16 @@ const handleCreate = async () => {
 }
 
 const handleDelete = async (row: any) => {
-  await ElMessageBox.confirm(`确认删除 Skill "${row.name}"？`, '删除确认', { type: 'warning' })
-  await skillApi.delete(row.id)
-  ElMessage.success('已删除')
-  await load()
+  try {
+    await ElMessageBox.confirm(`确认删除 Skill "${row.name}"？`, '删除确认', { type: 'warning' })
+    await skillApi.delete(row.id)
+    ElMessage.success('已删除')
+    await load()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.detail || '删除失败')
+    }
+  }
 }
 
 onMounted(load)

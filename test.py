@@ -7,7 +7,7 @@ client = OpenAI(
 
 response = client.chat.completions.create(
     model="test4",
-    messages=[{"role": "user", "content": "你好"}],
+    messages=[{"role": "user", "content": "今天天气怎么样呀！！！"}],
 )
 
 print(response.choices[0].message.content)

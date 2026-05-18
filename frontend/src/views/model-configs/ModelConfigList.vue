@@ -51,7 +51,7 @@
           <div style="width:100%">
             <div v-if="editingId && hasExistingKey" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
               <el-tag type="success" size="small">已设置</el-tag>
-              <span style="font-size:12px;color:#6b7280;">留空则保留原 Key，填写新值则替换</span>
+              <span style="font-size:12px;color:#6b7280;">当前：{{ apiKeyPreview }}，留空则保留，填写则替换</span>
             </div>
             <el-input v-model="form.api_key" type="password" show-password :placeholder="editingId && hasExistingKey ? '输入新 Key 以替换' : 'sk-...'" />
           </div>
@@ -88,11 +88,13 @@ const saving = ref(false)
 const editingId = ref<string | null>(null)
 const testingId = ref<string | null>(null)
 const hasExistingKey = ref(false)
+const apiKeyPreview = ref('')
 const form = ref(EMPTY_FORM())
 
 const resetForm = () => {
   editingId.value = null
   hasExistingKey.value = false
+  apiKeyPreview.value = ''
   form.value = EMPTY_FORM()
 }
 
@@ -114,6 +116,7 @@ const openCreate = () => {
 const openEdit = (mc: any) => {
   editingId.value = mc.id
   hasExistingKey.value = !!mc.has_api_key
+  apiKeyPreview.value = mc.api_key_preview || ''
   form.value = {
     name: mc.name,
     provider: mc.provider,

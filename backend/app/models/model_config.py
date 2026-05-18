@@ -23,3 +23,12 @@ class ModelConfig(Base):
     @property
     def has_api_key(self) -> bool:
         return bool(self.api_key_encrypted)
+
+    @property
+    def api_key_preview(self) -> str | None:
+        if not self.api_key_encrypted:
+            return None
+        key = self.api_key_encrypted
+        if len(key) <= 8:
+            return '*' * len(key)
+        return key[:4] + '****' + key[-4:]

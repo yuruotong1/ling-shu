@@ -3,6 +3,12 @@ from datetime import datetime
 from pydantic import BaseModel, field_validator
 
 
+class ResponseFormatUpdate(BaseModel):
+    """管理员专用：设置/更新 Agent 的结构化返回 JSON Schema"""
+    response_format: dict | None = None
+    response_format_locked: bool | None = None
+
+
 class AgentCreate(BaseModel):
     name: str
     description: str = ""
@@ -44,6 +50,9 @@ class AgentOut(BaseModel):
     model_config_id: uuid.UUID | None
     model_override: str | None
     risk_control: dict
+    response_format: dict | None = None
+    response_format_locked: bool = False
+    active_version_id: uuid.UUID | None = None
     version: int
     status: str
     skills: list[SkillBrief] = []
