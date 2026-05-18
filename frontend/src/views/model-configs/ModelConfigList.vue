@@ -31,7 +31,7 @@
       </el-col>
     </el-row>
 
-    <el-dialog v-model="showCreate" :title="editingId ? '编辑模型配置' : '添加模型配置'" width="600px" @close="resetForm">
+    <el-dialog v-model="showCreate" :title="editingId ? '编辑模型配置' : '添加模型配置'" width="600px" destroy-on-close @close="resetForm">
       <el-form :model="form" label-width="120px">
         <el-form-item label="配置名称" required>
           <el-input v-model="form.name" placeholder="e.g. OpenAI-GPT4" />
@@ -48,13 +48,7 @@
           <el-input v-model="form.endpoint" placeholder="https://api.openai.com/v1" />
         </el-form-item>
         <el-form-item label="API Key">
-          <div style="width:100%">
-            <div v-if="editingId && hasExistingKey" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
-              <el-tag type="success" size="small">已设置</el-tag>
-              <span style="font-size:12px;color:#6b7280;">当前：{{ apiKeyPreview }}，留空则保留，填写则替换</span>
-            </div>
-            <el-input v-model="form.api_key" type="password" show-password :placeholder="editingId && hasExistingKey ? '输入新 Key 以替换' : 'sk-...'" />
-          </div>
+          <el-input v-model="form.api_key" type="password" show-password placeholder="sk-..." />
         </el-form-item>
         <el-form-item label="默认模型" required>
           <el-input v-model="form.default_model" placeholder="gpt-4o / claude-3-5-sonnet-..." />
@@ -87,14 +81,10 @@ const showCreate = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 const testingId = ref<string | null>(null)
-const hasExistingKey = ref(false)
-const apiKeyPreview = ref('')
 const form = ref(EMPTY_FORM())
 
 const resetForm = () => {
   editingId.value = null
-  hasExistingKey.value = false
-  apiKeyPreview.value = ''
   form.value = EMPTY_FORM()
 }
 
@@ -115,13 +105,11 @@ const openCreate = () => {
 
 const openEdit = (mc: any) => {
   editingId.value = mc.id
-  hasExistingKey.value = !!mc.has_api_key
-  apiKeyPreview.value = mc.api_key_preview || ''
   form.value = {
     name: mc.name,
     provider: mc.provider,
     endpoint: mc.endpoint,
-    api_key: '',
+    api_key: mc.api_key || '',
     default_model: mc.default_model,
     default_params: { ...mc.default_params },
   }
@@ -140,12 +128,8 @@ const handleSave = async () => {
       default_params: form.value.default_params,
     }
     if (editingId.value) {
-      // 编辑：只有用户填了新 key 才更新，否则保留原 key
-      const payload: any = { ...base }
-      if (form.value.api_key) payload.api_key = form.value.api_key
-      await modelConfigApi.update(editingId.value, payload)
+      await modelConfigApi.update(editingId.value, { ...base, api_key: form.value.api_key || undefined })
     } else {
-      // 新建：直接带上 api_key（可为空）
       await modelConfigApi.create({ ...base, api_key: form.value.api_key || undefined })
     }
     ElMessage.success('保存成功')

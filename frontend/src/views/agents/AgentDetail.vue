@@ -221,7 +221,12 @@
                 <el-tag v-if="row.id === agent.active_version_id" type="success" size="small" style="margin-left:4px">线上</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="change_summary" label="变更摘要" />
+            <el-table-column prop="change_summary" label="变更摘要" width="120" show-overflow-tooltip />
+            <el-table-column label="系统提示词" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span style="white-space:pre-wrap">{{ row.system_prompt }}</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="created_at" label="时间" width="170">
               <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
             </el-table-column>
@@ -244,7 +249,7 @@
     </el-tabs>
 
     <!-- 在线测试 -->
-    <el-dialog v-model="showTest" title="在线测试" width="700px" top="5vh">
+    <el-dialog v-model="showTest" title="在线测试" width="700px" top="5vh" destroy-on-close>
       <div class="chat-container">
         <div class="chat-messages" ref="chatMessagesRef">
           <div v-if="testMessages.length === 0" class="chat-empty">
@@ -270,7 +275,7 @@
           </div>
         </div>
         <div class="chat-input-area">
-          <el-input v-model="testInput" type="textarea" :rows="3" placeholder="输入消息...按Ctrl+Enter发送" @keydown.ctrl.enter.prevent="runTest" />
+          <el-input v-model="testInput" type="textarea" :rows="3" placeholder="Enter 发送，Shift+Enter 换行" @keydown.enter.exact.prevent="runTest" />
           <div style="margin-top:8px;display:flex;justify-content:flex-end;gap:8px">
             <el-button @click="clearTest">清空对话</el-button>
             <el-button type="primary" @click="runTest" :loading="testing">发送</el-button>
@@ -280,7 +285,7 @@
     </el-dialog>
 
     <!-- 创建Skill对话框 -->
-    <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px">
+    <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px" destroy-on-close>
       <el-form :model="skillForm" label-width="80px">
         <el-form-item label="名称" required>
           <el-input v-model="skillForm.name" placeholder="e.g. 用例生成" />

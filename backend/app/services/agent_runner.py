@@ -42,13 +42,14 @@ def _validate_and_extract_json(text: str, schema: dict) -> tuple[bool, str]:
 def _build_skill_function_defs(skills: list[Skill]) -> list[dict]:
     """将Agent绑定的Skills转换为function definitions供LLM选择"""
     defs = []
-    for sk in skills:
-        fn_name = sk.name.replace(" ", "_").replace("-", "_")
+    for i, sk in enumerate(skills):
+        # OpenAI 限制 tool name 只能包含 a-zA-Z0-9_-，中文名需用 skill_i 替代
+        fn_name = f"skill_{i}"
         defs.append({
             "type": "function",
             "function": {
                 "name": fn_name,
-                "description": sk.description or sk.name,
+                "description": f"{sk.name}: {sk.description or ''}",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -76,7 +77,7 @@ async def run_agent(
     """
     start_time = time.time()
     skills: list[Skill] = agent.skills or []
-    skill_map = {sk.name.replace(" ", "_").replace("-", "_"): sk for sk in skills}
+    skill_map = {f"skill_{i}": sk for i, sk in enumerate(skills)}
 
     skill_func_defs = _build_skill_function_defs(skills) if skills else None
 

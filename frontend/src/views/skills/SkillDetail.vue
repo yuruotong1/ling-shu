@@ -68,13 +68,18 @@
             </el-button>
           </div>
           <el-table :data="versions" v-loading="vLoading">
-            <el-table-column label="版本" width="110">
+            <el-table-column label="版本" width="90">
               <template #default="{ row }">
                 <span>v{{ row.version }}</span>
                 <el-tag v-if="row.id === skill.active_version_id" type="success" size="small" style="margin-left:4px">线上</el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="change_summary" label="变更摘要" />
+            <el-table-column prop="change_summary" label="变更摘要" width="120" show-overflow-tooltip />
+            <el-table-column label="提示词" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span style="white-space:pre-wrap">{{ row.prompt }}</span>
+              </template>
+            </el-table-column>
             <el-table-column prop="created_by" label="来源" width="80">
               <template #default="{ row }">
                 <el-tag size="small" :type="row.created_by === 'ai' ? 'warning' : 'info'">{{ row.created_by }}</el-tag>
@@ -105,7 +110,7 @@
     </el-tabs>
 
     <!-- 在线测试 -->
-    <el-dialog v-model="showTest" title="在线测试" width="700px">
+    <el-dialog v-model="showTest" title="在线测试" width="700px" destroy-on-close>
       <el-input v-model="testInput" type="textarea" :rows="4" placeholder="输入测试内容..." />
       <el-button type="primary" @click="runTest" :loading="testing" style="margin-top:12px">运行</el-button>
       <div v-if="testOutput" style="margin-top:16px">

@@ -31,7 +31,7 @@ class ModelConfigOut(BaseModel):
     default_params: dict
     is_active: bool
     has_api_key: bool = False
-    api_key_preview: str | None = None
+    api_key: str | None = None
     created_at: datetime
     updated_at: datetime
 

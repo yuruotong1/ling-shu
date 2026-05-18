@@ -1,5 +1,5 @@
 <template>
-  <router-view v-if="$route.meta.public" />
+  <router-view v-if="$route.meta.public" :key="$route.fullPath" />
   <el-container v-else class="app-container">
     <el-aside width="220px" class="sidebar">
       <div class="logo">
@@ -56,7 +56,7 @@
       </div>
     </el-aside>
     <el-main class="main-content">
-      <router-view />
+      <router-view :key="$route.fullPath" />
     </el-main>
   </el-container>
 </template>

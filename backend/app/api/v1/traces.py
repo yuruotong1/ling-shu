@@ -93,6 +93,22 @@ async def delete_trace(
     return {"ok": True}
 
 
+class BatchDeleteRequest(BaseModel):
+    trace_ids: list[uuid.UUID]
+
+
+@router.post("/batch-delete")
+async def batch_delete_traces(
+    body: BatchDeleteRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    from sqlalchemy import delete as sqla_delete
+    await db.execute(sqla_delete(Trace).where(Trace.id.in_(body.trace_ids)))
+    await db.commit()
+    return {"deleted": len(body.trace_ids)}
+
+
 @router.patch("/{trace_id}/rating", response_model=TraceOut)
 async def update_rating(
     trace_id: uuid.UUID,

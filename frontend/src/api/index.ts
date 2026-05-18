@@ -111,6 +111,7 @@ export const traceApi = {
   list: (agentName?: string) => api.get('/traces', { params: { agent_name: agentName } }),
   get: (id: string) => api.get(`/traces/${id}`),
   delete: (id: string) => api.delete(`/traces/${id}`),
+  batchDelete: (ids: string[]) => api.post('/traces/batch-delete', { trace_ids: ids }),
   rate: (id: string, data: { user_rating?: string | null; reference_output?: string | null }) =>
     api.patch(`/traces/${id}/rating`, data),
   continueTrace: (id: string, data: { user_message: string }) =>

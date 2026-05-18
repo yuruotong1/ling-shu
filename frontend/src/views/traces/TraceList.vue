@@ -11,8 +11,16 @@
       </div>
     </div>
 
+    <div v-if="selectedRows.length" style="margin-bottom:12px">
+      <el-button type="danger" @click="handleBatchDelete">
+        批量删除 ({{ selectedRows.length }})
+      </el-button>
+    </div>
+
     <el-table :data="displayRows" v-loading="loading" class="data-table"
-      row-class-name="clickable-row" @row-click="openRow">
+      row-class-name="clickable-row" @row-click="openRow"
+      @selection-change="onSelectionChange">
+      <el-table-column type="selection" width="45" />
       <el-table-column label="" width="40">
         <template #default="{ row }">
           <el-tooltip :content="row._isSession ? '多轮对话' : '单次调用'">
@@ -55,10 +63,21 @@
       <el-table-column prop="created_at" label="时间" width="170">
         <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
       </el-table-column>
+      <el-table-column label="操作" width="80" align="center">
+        <template #default="{ row }">
+          <el-button link type="danger" size="small" @click.stop="handleDelete(row)">删除</el-button>
+        </template>
+      </el-table-column>
     </el-table>
 
     <!-- 详情 Drawer -->
     <el-drawer v-model="showDrawer" :title="drawerTitle" size="60%" destroy-on-close>
+      <template #header>
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+          <span>{{ drawerTitle }}</span>
+          <el-button link type="danger" @click="handleDeleteFromDrawer">删除</el-button>
+        </div>
+      </template>
       <div v-if="activeRow" class="drawer-body">
 
         <!-- 会话视图（多轮） -->
@@ -228,7 +247,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { traceApi, agentApi, skillApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
@@ -236,6 +255,7 @@ const authStore = useAuthStore()
 const traces = ref<any[]>([])
 const loading = ref(false)
 const filterAgent = ref('')
+const selectedRows = ref<any[]>([])
 const showDrawer = ref(false)
 const activeRow = ref<any>(null)
 const sessionTurns = ref<any[]>([])
@@ -302,6 +322,53 @@ const load = async () => {
     traces.value = r.data
   } finally {
     loading.value = false
+  }
+}
+
+const onSelectionChange = (rows: any[]) => {
+  selectedRows.value = rows
+}
+
+const handleDelete = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确认删除该调用记录？`, '删除确认', { type: 'warning' })
+    await traceApi.delete(row.id)
+    ElMessage.success('已删除')
+    await load()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.detail || '删除失败')
+    }
+  }
+}
+
+const handleBatchDelete = async () => {
+  try {
+    await ElMessageBox.confirm(`确认批量删除 ${selectedRows.value.length} 条记录？`, '删除确认', { type: 'warning' })
+    const ids = selectedRows.value.map(r => r.id)
+    await traceApi.batchDelete(ids)
+    ElMessage.success('批量删除成功')
+    selectedRows.value = []
+    await load()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.detail || '删除失败')
+    }
+  }
+}
+
+const handleDeleteFromDrawer = async () => {
+  if (!activeRow.value) return
+  try {
+    await ElMessageBox.confirm('确认删除该调用记录？', '删除确认', { type: 'warning' })
+    await traceApi.delete(activeRow.value.id)
+    ElMessage.success('已删除')
+    showDrawer.value = false
+    await load()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(e.response?.data?.detail || '删除失败')
+    }
   }
 }
 

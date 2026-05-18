@@ -37,7 +37,7 @@
       </el-table-column>
     </el-table>
 
-    <el-dialog v-model="showCreate" title="创建 Skill" width="800px">
+    <el-dialog v-model="showCreate" title="创建 Skill" width="800px" destroy-on-close>
       <el-form :model="form" label-width="100px">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="e.g. 用例生成" />

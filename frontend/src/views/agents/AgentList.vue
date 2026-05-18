@@ -38,7 +38,7 @@
     </el-table>
 
     <!-- 创建对话框 -->
-    <el-dialog v-model="showCreate" title="创建 Agent" width="700px">
+    <el-dialog v-model="showCreate" title="创建 Agent" width="700px" destroy-on-close>
       <el-form :model="form" label-width="100px">
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="e.g. 客服系统" />
@@ -74,7 +74,7 @@
     </el-dialog>
 
     <!-- 创建Skill对话框 -->
-    <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px">
+    <el-dialog v-model="showCreateSkill" title="创建 Skill" width="600px" destroy-on-close>
       <el-form :model="skillForm" label-width="80px">
         <el-form-item label="名称" required>
           <el-input v-model="skillForm.name" placeholder="e.g. 用例生成" />
