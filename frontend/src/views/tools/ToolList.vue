@@ -201,6 +201,10 @@
           <el-input v-model="createForm.auth_config.key_value" type="password" show-password />
         </el-form-item>
         <el-form-item label="入参Schema">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span />
+            <el-button size="small" @click="showGenerateSchema = true">🤖 AI 生成 Schema</el-button>
+          </div>
           <el-input v-model="createSchemaStr" type="textarea" :rows="5"
             placeholder='{"type":"object","properties":{...}}' />
         </el-form-item>
@@ -208,6 +212,21 @@
       <template #footer>
         <el-button @click="showCreate = false">取消</el-button>
         <el-button type="primary" @click="handleCreate" :loading="creating">注册</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI 生成 Schema 对话框 -->
+    <el-dialog v-model="showGenerateSchema" title="AI 生成入参 Schema" width="600px">
+      <el-form label-width="100px">
+        <el-form-item label="描述需求">
+          <el-input v-model="schemaDesc" type="textarea" :rows="4" placeholder="例如：查询订单接口，需要订单号（字符串）、开始时间、结束时间" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="warning" :loading="generatingSchema" @click="doGenerateSchema">🤖 AI 生成 Schema</el-button>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showGenerateSchema = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -359,7 +378,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { toolApi, kbApi } from '@/api'
+import { toolApi, kbApi, aiGenerateApi } from '@/api'
 
 const tools = ref<any[]>([])
 const loading = ref(false)
@@ -372,6 +391,9 @@ const testingId = ref<string | null>(null)
 const testParamsStr = ref('{}')
 const testResult = ref<any>(null)
 const expandedIds = ref<string[]>([])
+const showGenerateSchema = ref(false)
+const schemaDesc = ref('')
+const generatingSchema = ref(false)
 
 // per-row edit state
 const editForms = ref<Record<string, any>>({})
@@ -446,7 +468,11 @@ const collapseRow = (id: string) => {
 }
 
 const onExpandChange = (row: any, expanded: boolean) => {
-  if (!expanded) collapseRow(row.id)
+  if (expanded) {
+    openEdit(row)
+  } else {
+    collapseRow(row.id)
+  }
 }
 
 const handleSave = async (id: string) => {
@@ -499,6 +525,29 @@ const handleCreate = async () => {
     ElMessage.error(e.response?.data?.detail || '注册失败')
   } finally {
     creating.value = false
+  }
+}
+
+const doGenerateSchema = async () => {
+  if (!schemaDesc.value.trim()) {
+    ElMessage.warning('请先描述入参需求')
+    return
+  }
+  generatingSchema.value = true
+  try {
+    const r = await aiGenerateApi.schema({ description: schemaDesc.value })
+    const generated = r.data.schema
+    if (generated) {
+      createSchemaStr.value = JSON.stringify(generated, null, 2)
+      ElMessage.success('AI 已生成 Schema，已填充到输入框')
+      showGenerateSchema.value = false
+    } else {
+      ElMessage.error('生成失败，未返回有效 Schema')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    generatingSchema.value = false
   }
 }
 

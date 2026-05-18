@@ -28,7 +28,10 @@
             <el-input v-model="editForm.description" placeholder="Skill功能描述" />
           </div>
           <div style="margin-bottom:16px">
-            <div class="label">提示词</div>
+            <div class="label" style="display:flex;justify-content:space-between;align-items:center">
+              <span>提示词</span>
+              <AiGeneratePrompt type="skill" @generated="(val: string) => editForm.prompt = val" />
+            </div>
             <el-input v-model="editForm.prompt" type="textarea" :rows="12" />
           </div>
           <div style="margin-bottom:16px">
@@ -126,6 +129,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { skillApi, toolApi, kbApi } from '@/api'
+import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 
 const route = useRoute()

@@ -74,6 +74,7 @@ async def update_agent(agent_id: uuid.UUID, body: AgentUpdate, db: AsyncSession 
         version=agent.version,
         system_prompt=agent.system_prompt,
         change_summary="用户更新",
+        skills_snapshot=[{"id": str(s.id), "name": s.name, "description": s.description} for s in (agent.skills or [])],
     )
     db.add(av)
 
@@ -174,6 +175,72 @@ async def test_response_format(
         return {"valid": False, "error": e.message}
     except jsonschema.SchemaError as e:
         return {"valid": False, "error": f"无效的 JSON Schema：{e.message}"}
+
+
+@router.post("/{agent_id}/response-format/generate")
+async def generate_response_format(
+    agent_id: uuid.UUID,
+    body: dict,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """根据自然语言描述，调用大模型生成 JSON Schema。"""
+    description = body.get("description", "")
+    if not description:
+        raise HTTPException(400, "描述不能为空")
+
+    mc_result = await db.execute(select(ModelConfig).where(ModelConfig.is_active == True).limit(1))
+    mc = mc_result.scalar_one_or_none()
+    if mc is None:
+        raise HTTPException(500, "No model config available")
+
+    system_prompt = (
+        "你是一个 JSON Schema 生成专家。根据用户的自然语言描述，生成一个合法的 JSON Schema。\n"
+        "要求：\n"
+        "1. 只输出 JSON Schema 本身，不要输出任何解释性文字\n"
+        "2. 必须包含 type='object' 和 properties\n"
+        "3. 为每个字段添加 description\n"
+        "4. 合理设置 required 字段\n"
+        "5. 输出必须是合法的 JSON 格式"
+    )
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"请为以下需求生成 JSON Schema：\n{description}"},
+    ]
+
+    result = await model_client.chat_completion(mc=mc, messages=messages, temperature=0.2)
+    content = result["choices"][0]["message"].get("content", "")
+
+    # 尝试从响应中提取 JSON
+    import json
+    import re
+    schema = None
+    # 先尝试直接解析
+    try:
+        schema = json.loads(content)
+    except Exception:
+        pass
+    # 再尝试提取 ```json 代码块
+    if schema is None:
+        m = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
+        if m:
+            try:
+                schema = json.loads(m.group(1))
+            except Exception:
+                pass
+    # 最后尝试提取 {...}
+    if schema is None:
+        m = re.search(r"(\{[\s\S]*\})", content)
+        if m:
+            try:
+                schema = json.loads(m.group(1))
+            except Exception:
+                pass
+
+    if schema is None:
+        raise HTTPException(500, "模型未返回合法的 JSON Schema，请重试或手动编写")
+
+    return {"schema": schema}
 
 
 @router.post("/{agent_id}/versions/{version_id}/set-active", response_model=AgentOut)

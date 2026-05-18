@@ -47,6 +47,10 @@
           <el-input v-model="form.description" placeholder="Agent功能描述" />
         </el-form-item>
         <el-form-item label="系统提示词" required>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span />
+            <AiGeneratePrompt type="agent" @generated="(val: string) => form.system_prompt = val" />
+          </div>
           <el-input v-model="form.system_prompt" type="textarea" :rows="6"
             placeholder="定义Agent的角色、推理规则、可用Skill及适用场景..." />
         </el-form-item>
@@ -98,6 +102,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { agentApi, skillApi, modelConfigApi } from '@/api'
+import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const agents = ref<any[]>([])
 const allSkills = ref<any[]>([])

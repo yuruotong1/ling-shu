@@ -46,6 +46,10 @@
           <el-input v-model="form.description" placeholder="Skill功能描述（供Agent决策调用）" />
         </el-form-item>
         <el-form-item label="提示词" required>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span />
+            <AiGeneratePrompt type="skill" @generated="(val: string) => form.prompt = val" />
+          </div>
           <el-input v-model="form.prompt" type="textarea" :rows="10"
             placeholder="# Skill名称&#10;&#10;你是一个专业的...&#10;&#10;## 规则&#10;- ..." />
         </el-form-item>
@@ -72,6 +76,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { skillApi, toolApi, kbApi } from '@/api'
+import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const skills = ref<any[]>([])
 const allTools = ref<any[]>([])

@@ -47,6 +47,7 @@ class AgentVersion(Base):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     system_prompt: Mapped[str] = mapped_column(Text, nullable=False)
     change_summary: Mapped[str] = mapped_column(Text, default="")
+    skills_snapshot: Mapped[list[dict]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     agent: Mapped["Agent"] = relationship("Agent", back_populates="versions")

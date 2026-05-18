@@ -63,8 +63,9 @@
       <el-table-column prop="created_at" label="时间" width="170">
         <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
       </el-table-column>
-      <el-table-column label="操作" width="80" align="center">
+      <el-table-column label="操作" width="120" align="center">
         <template #default="{ row }">
+          <el-button link size="small" @click.stop="openRow(row)">编辑</el-button>
           <el-button link type="danger" size="small" @click.stop="handleDelete(row)">删除</el-button>
         </template>
       </el-table-column>
@@ -128,36 +129,6 @@
             <div v-if="!sessionTurns.length" style="color:#94a3b8;text-align:center;padding:40px">加载中...</div>
           </div>
 
-          <!-- 继续对话 -->
-          <el-divider>继续对话</el-divider>
-          <div style="display:flex;gap:8px">
-            <el-input v-model="continueMsg" type="textarea" :rows="2" placeholder="输入下一条消息..." style="flex:1" />
-            <el-button type="primary" :loading="continuing" @click="doContinue" style="align-self:flex-end">发送</el-button>
-          </div>
-
-          <!-- 优化按钮 -->
-          <el-divider>从对话优化</el-divider>
-          <div class="optimize-area">
-            <el-input v-model="optimizeInstruction" placeholder="额外优化要求（可选）" style="margin-bottom:8px" />
-            <div style="display:flex;gap:8px;flex-wrap:wrap">
-              <el-select v-model="optimizeTargetId" placeholder="选择 Agent" style="flex:1;min-width:160px" clearable>
-                <el-option-group label="Agent">
-                  <el-option v-for="a in allAgents" :key="a.id" :label="a.name" :value="a.id+'|agent'" />
-                </el-option-group>
-                <el-option-group label="Skill">
-                  <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id+'|skill'" />
-                </el-option-group>
-              </el-select>
-              <el-button type="warning" :loading="optimizing" @click="doOptimize(true)">
-                一键优化（生成新版本）
-              </el-button>
-            </div>
-            <div v-if="optimizeResult" class="optimize-result">
-              <el-alert type="success" :closable="false">
-                已生成新版本 v{{ optimizeResult.version }}：{{ optimizeResult.change_summary }}
-              </el-alert>
-            </div>
-          </div>
         </template>
 
         <!-- 单次 Trace 视图 -->
@@ -213,6 +184,49 @@
           </el-collapse>
 
         </template>
+
+        <!-- 优化区域 -->
+        <el-divider style="margin: 24px 0 16px" />
+        <div class="section-label" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+          <span>从对话优化</span>
+        </div>
+        <el-form size="small" label-width="80px">
+          <el-form-item label="优化目标">
+            <el-select v-model="optimizeTargetId" placeholder="选择要优化的 Agent 或 Skill" style="width:100%">
+              <el-option-group label="Agents">
+                <el-option v-for="a in allAgents" :key="a.id" :label="a.name" :value="`${a.id}|agent`" />
+              </el-option-group>
+              <el-option-group label="Skills">
+                <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="`${s.id}|skill`" />
+              </el-option-group>
+            </el-select>
+          </el-form-item>
+          <el-form-item label="优化指令">
+            <el-input v-model="optimizeInstruction" type="textarea" :rows="2"
+              placeholder="可选：描述你希望如何优化这个 Agent 或 Skill..." />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" size="small" :loading="optimizing"
+              @click="doOptimize(!!activeRow._isSession)">
+              生成新版本
+            </el-button>
+          </el-form-item>
+          <el-form-item v-if="optimizeResult" label="结果">
+            <el-alert :title="`已生成 v${optimizeResult.version}`" type="success" :closable="false" show-icon>
+              <template #default>
+                <div style="margin-top:4px;font-size:12px">
+                  变更说明：{{ optimizeResult.change_summary || '无' }}
+                </div>
+                <div style="margin-top:8px">
+                  <el-button size="small" type="primary"
+                    @click="router.push(`/${optimizeResult.target_type === 'agent' ? 'agents' : 'skills'}/${optimizeResult.target_id}`)">
+                    去管理新生成的{{ optimizeResult.target_type === 'agent' ? 'Agent' : 'Skill' }}
+                  </el-button>
+                </div>
+              </template>
+            </el-alert>
+          </el-form-item>
+        </el-form>
       </div>
     </el-drawer>
   </div>
@@ -220,10 +234,12 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { traceApi, agentApi, skillApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 
+const router = useRouter()
 const authStore = useAuthStore()
 const traces = ref<any[]>([])
 const loading = ref(false)
@@ -437,7 +453,7 @@ const doOptimize = async (isSession: boolean) => {
         target_type: type, target_id: id, instruction: optimizeInstruction.value,
       })
     }
-    optimizeResult.value = r.data
+    optimizeResult.value = { ...r.data, target_type: type, target_id: id }
     ElMessage.success(`已生成新版本 v${r.data.version}，请前往对应 ${type === 'agent' ? 'Agent' : 'Skill'} 详情页查看`)
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '优化失败')

@@ -77,22 +77,6 @@
     <!-- 添加样本 -->
     <el-dialog v-model="showAddItem" title="添加评估样本" width="800px" @close="resetAddItem">
       <el-tabs v-model="addTab" @tab-change="onTabChange">
-        <!-- 手动填写 -->
-        <el-tab-pane label="手动填写" name="manual">
-          <el-form :model="itemForm" label-width="100px" style="margin-top:12px">
-            <el-form-item label="用户输入" required>
-              <el-input v-model="itemForm.input_text" type="textarea" :rows="3" placeholder="用户输入内容" />
-            </el-form-item>
-            <el-form-item label="参考输出">
-              <el-input v-model="itemForm.reference_output" type="textarea" :rows="3" placeholder="期望的输出（可选）" />
-            </el-form-item>
-          </el-form>
-          <div style="text-align:right">
-            <el-button @click="showAddItem = false">取消</el-button>
-            <el-button type="primary" @click="handleAddItem" :loading="savingItem">添加</el-button>
-          </div>
-        </el-tab-pane>
-
         <!-- 从调用链路选择 -->
         <el-tab-pane label="从调用链路选择" name="trace">
           <div class="trace-toolbar">
@@ -130,6 +114,22 @@
             </el-button>
           </div>
         </el-tab-pane>
+
+        <!-- 手动填写 -->
+        <el-tab-pane label="手动填写" name="manual">
+          <el-form :model="itemForm" label-width="100px" style="margin-top:12px">
+            <el-form-item label="用户输入" required>
+              <el-input v-model="itemForm.input_text" type="textarea" :rows="3" placeholder="用户输入内容" />
+            </el-form-item>
+            <el-form-item label="参考输出">
+              <el-input v-model="itemForm.reference_output" type="textarea" :rows="3" placeholder="期望的输出（可选）" />
+            </el-form-item>
+          </el-form>
+          <div style="text-align:right">
+            <el-button @click="showAddItem = false">取消</el-button>
+            <el-button type="primary" @click="handleAddItem" :loading="savingItem">添加</el-button>
+          </div>
+        </el-tab-pane>
       </el-tabs>
     </el-dialog>
   </div>
@@ -153,7 +153,7 @@ const activeSet = ref<any>(null)
 const createForm = ref({ name: '', description: '', data_type: 'agent', target_name: '' })
 const itemForm = ref({ input_text: '', reference_output: '' })
 
-const addTab = ref('manual')
+const addTab = ref('trace')
 const allTraces = ref<any[]>([])
 const tracesLoading = ref(false)
 const traceFilter = ref('')

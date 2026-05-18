@@ -41,6 +41,10 @@
           <el-input v-model="form.description" />
         </el-form-item>
         <el-form-item label="评估提示词" required>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span />
+            <AiGeneratePrompt type="evaluator" @generated="(val: string) => form.prompt = val" />
+          </div>
           <el-input v-model="form.prompt" type="textarea" :rows="8"
             placeholder="你是一个评审专家。请根据以下标准对输出评分：&#10;1. 准确性：...&#10;2. 完整性：..." />
         </el-form-item>
@@ -61,6 +65,7 @@
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { evaluatorApi } from '@/api'
+import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const evaluators = ref<any[]>([])
 const loading = ref(false)

@@ -72,6 +72,7 @@ class AgentVersionOut(BaseModel):
     version: int
     system_prompt: str
     change_summary: str
+    skills_snapshot: list[dict] = []
     created_at: datetime
 
     class Config:

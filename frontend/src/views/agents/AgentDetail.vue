@@ -3,7 +3,13 @@
     <div class="page-header">
       <div>
         <el-button text @click="$router.back()"><el-icon><ArrowLeft /></el-icon> 返回</el-button>
-        <h2>{{ agent.name }} <el-tag size="small">v{{ agent.version }}</el-tag></h2>
+        <h2>
+          {{ agent.name }}
+          <el-tag size="small">v{{ agent.version }}</el-tag>
+          <el-tag v-if="agent.active_version_id" type="success" size="small" style="margin-left:4px">
+            线上 v{{ versions.find(v => v.id === agent.active_version_id)?.version }}
+          </el-tag>
+        </h2>
         <p class="subtitle">{{ agent.description }}</p>
       </div>
       <div>
@@ -27,7 +33,10 @@
             </el-descriptions-item>
           </el-descriptions>
           <div style="margin-bottom:16px">
-            <div class="label">系统提示词</div>
+            <div class="label" style="display:flex;justify-content:space-between;align-items:center">
+              <span>系统提示词</span>
+              <AiGeneratePrompt type="agent" @generated="(val: string) => editForm.system_prompt = val" />
+            </div>
             <el-input v-model="editForm.system_prompt" type="textarea" :rows="8" />
           </div>
           <div style="margin-bottom:20px">
@@ -104,8 +113,8 @@
                 <div v-if="formatError" style="color:#f56c6c;font-size:12px;margin-top:4px">{{ formatError }}</div>
               </el-form-item>
               <el-form-item>
-                <el-button @click="checkJson">校验 JSON</el-button>
-                <el-button @click="showTestSchema = true">测试 Schema</el-button>
+                <el-button @click="showTestSchema = true">Schema 测试</el-button>
+                <el-button @click="showGenerateSchema = true">AI 生成</el-button>
                 <el-button type="primary" :loading="formatSaving" @click="handleFormatSave">保存</el-button>
                 <el-button @click="clearFormat">清除</el-button>
               </el-form-item>
@@ -136,9 +145,20 @@
               </template>
             </el-table-column>
             <el-table-column prop="change_summary" label="变更摘要" width="120" show-overflow-tooltip />
-            <el-table-column label="系统提示词" min-width="200" show-overflow-tooltip>
+            <el-table-column label="系统提示词" min-width="160">
               <template #default="{ row }">
-                <span style="white-space:pre-wrap">{{ row.system_prompt }}</span>
+                <span style="white-space:pre-wrap">{{ row.system_prompt?.slice(0, 60) }}{{ row.system_prompt?.length > 60 ? '...' : '' }}</span>
+                <el-button v-if="row.system_prompt?.length > 60" link size="small" type="primary" @click="openVersionDetail(row)" style="margin-left:4px">查看完整</el-button>
+              </template>
+            </el-table-column>
+            <el-table-column label="Skill配置" min-width="120">
+              <template #default="{ row }">
+                <span v-if="!row.skills_snapshot?.length">—</span>
+                <span v-else>
+                  {{ row.skills_snapshot.map((s: any) => s.name).join(', ').slice(0, 40) }}
+                  {{ row.skills_snapshot.map((s: any) => s.name).join(', ').length > 40 ? '...' : '' }}
+                </span>
+                <el-button v-if="row.skills_snapshot?.length" link size="small" type="primary" @click="openVersionDetail(row)" style="margin-left:4px">查看</el-button>
               </template>
             </el-table-column>
             <el-table-column prop="created_at" label="时间" width="170">
@@ -198,14 +218,14 @@
       </div>
     </el-dialog>
 
-    <!-- 测试 Schema 对话框 -->
-    <el-dialog v-model="showTestSchema" title="测试 JSON Schema" width="600px">
+    <!-- Schema 测试对话框 -->
+    <el-dialog v-model="showTestSchema" title="Schema 测试" width="600px">
       <el-form label-width="100px">
-        <el-form-item label="Schema">
-          <div class="output-text" style="max-height:200px;overflow:auto">{{ formatForm.schemaText || '（未填写）' }}</div>
+        <el-form-item label="当前 Schema">
+          <div class="output-text" style="max-height:160px;overflow:auto">{{ formatForm.schemaText || '（未填写）' }}</div>
         </el-form-item>
         <el-form-item label="测试数据">
-          <el-input v-model="testSchemaData" type="textarea" :rows="6" placeholder='{"intent":"查询"}' />
+          <el-input v-model="testSchemaData" type="textarea" :rows="6" placeholder='{"intent":"查询","confidence":0.95,"reason":"用户询问订单状态"}' />
         </el-form-item>
         <el-form-item v-if="testSchemaResult">
           <div :style="{ color: testSchemaResult.startsWith('✅') ? '#67c23a' : '#f56c6c' }">{{ testSchemaResult }}</div>
@@ -214,6 +234,38 @@
       <template #footer>
         <el-button @click="showTestSchema = false">关闭</el-button>
         <el-button type="primary" @click="doTestSchema">运行测试</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- AI 生成 Schema 对话框 -->
+    <el-dialog v-model="showGenerateSchema" title="AI 生成 Schema" width="600px">
+      <el-form label-width="100px">
+        <el-form-item label="描述需求">
+          <el-input v-model="schemaDesc" type="textarea" :rows="4" placeholder="例如：一个意图识别结果，包含意图类别（查询/购买/投诉）、置信度（0-1之间的小数）、判断理由" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="warning" :loading="generatingSchema" @click="doGenerateSchema">🤖 AI 生成 Schema</el-button>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showGenerateSchema = false">关闭</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 版本详情对话框 -->
+    <el-dialog v-model="showVersionDetail" :title="`版本详情 v${versionDetail?.version}`" width="700px" destroy-on-close>
+      <div v-if="versionDetail">
+        <div class="label">系统提示词</div>
+        <div class="output-text" style="max-height:300px;overflow:auto;margin-bottom:16px;white-space:pre-wrap">{{ versionDetail.system_prompt }}</div>
+        <div class="label">Skill 配置</div>
+        <el-table v-if="versionDetail.skills_snapshot?.length" :data="versionDetail.skills_snapshot" size="small" border>
+          <el-table-column prop="name" label="名称" width="150" />
+          <el-table-column prop="description" label="描述" show-overflow-tooltip />
+        </el-table>
+        <div v-else style="color:#94a3b8;font-size:13px">无 Skill 配置</div>
+      </div>
+      <template #footer>
+        <el-button @click="showVersionDetail = false">关闭</el-button>
       </template>
     </el-dialog>
 
@@ -244,6 +296,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { agentApi, skillApi, agentFormatApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
+import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const route = useRoute()
 const authStore = useAuthStore()
@@ -261,8 +314,11 @@ const formatSaving = ref(false)
 const formatError = ref('')
 const formatForm = ref({ schemaText: '' })
 const showTestSchema = ref(false)
+const showGenerateSchema = ref(false)
+const schemaDesc = ref('')
 const testSchemaData = ref('')
 const testSchemaResult = ref('')
+const generatingSchema = ref(false)
 
 const testInput = ref('')
 const testMessages = ref<{role: string, content: string, loop_steps?: any[]}[]>([])
@@ -272,6 +328,8 @@ const editForm = ref({ name: '', system_prompt: '', skill_ids: [] as string[], m
 const showCreateSkill = ref(false)
 const skillSaving = ref(false)
 const skillForm = ref({ name: '', description: '', prompt: '' })
+const showVersionDetail = ref(false)
+const versionDetail = ref<any>(null)
 
 
 const baseUrl = computed(() => `${window.location.protocol}//${window.location.hostname}:8000`)
@@ -413,6 +471,11 @@ const handleSetActive = async (row: any) => {
   await load()
 }
 
+const openVersionDetail = (row: any) => {
+  versionDetail.value = row
+  showVersionDetail.value = true
+}
+
 const handleUnpin = async () => {
   await agentApi.unpinVersion(agent.value.id)
   ElMessage.success('已取消版本固定，恢复使用最新版本')
@@ -485,24 +548,47 @@ const doTestSchema = async () => {
   try {
     schema = JSON.parse(formatForm.value.schemaText)
   } catch {
-    testSchemaResult.value = 'Schema JSON 格式错误'
+    testSchemaResult.value = '❌ Schema JSON 格式错误，请先修正'
     return
   }
   try {
     data = JSON.parse(testSchemaData.value)
   } catch {
-    testSchemaResult.value = '测试数据 JSON 格式错误'
+    testSchemaResult.value = '❌ 测试数据 JSON 格式错误'
     return
   }
   try {
     const r = await agentFormatApi.test(agent.value.id, { schema, data })
     if (r.data.valid) {
-      testSchemaResult.value = '✅ 验证通过'
+      testSchemaResult.value = '✅ 验证通过，数据符合 Schema'
     } else {
       testSchemaResult.value = '❌ ' + r.data.error
     }
   } catch (e: any) {
     testSchemaResult.value = e.response?.data?.detail || '测试失败'
+  }
+}
+
+const doGenerateSchema = async () => {
+  if (!schemaDesc.value.trim()) {
+    ElMessage.warning('请先描述你想要的输出格式')
+    return
+  }
+  generatingSchema.value = true
+  testSchemaResult.value = ''
+  try {
+    const r = await agentFormatApi.generate(agent.value.id, { description: schemaDesc.value })
+    const generated = r.data.schema
+    if (generated) {
+      formatForm.value.schemaText = JSON.stringify(generated, null, 2)
+      ElMessage.success('AI 已生成 Schema，已填充到输入框')
+    } else {
+      ElMessage.error('生成失败，未返回有效 Schema')
+    }
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    generatingSchema.value = false
   }
 }
 

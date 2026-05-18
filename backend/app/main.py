@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.api.v1 import (
     chat, openai_models, agents, skills, tools,
     model_configs, evaluators, experiments, traces, kb, users,
+    ai_generate,
 )
 
 
@@ -46,6 +47,7 @@ app.include_router(evaluators.router, prefix="/api/v1")
 app.include_router(experiments.router, prefix="/api/v1")
 app.include_router(traces.router, prefix="/api/v1")
 app.include_router(kb.router, prefix="/api/v1")
+app.include_router(ai_generate.router, prefix="/api/v1")
 
 
 @app.get("/health")

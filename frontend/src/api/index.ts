@@ -155,11 +155,18 @@ export const userApi = {
   delete: (id: string) => api.delete(`/users/${id}`),
 }
 
+// ---- AI Generate ----
+export const aiGenerateApi = {
+  prompt: (data: { type: string; description: string }) => api.post('/ai-generate/prompt', data),
+  schema: (data: { description: string }) => api.post('/ai-generate/schema', data),
+}
+
 // ---- Agent Response Format ----
 export const agentFormatApi = {
   get: (agentId: string) => api.get(`/agents/${agentId}/response-format`),
   update: (agentId: string, data: any) => api.put(`/agents/${agentId}/response-format`, data),
   test: (agentId: string, data: { schema: any; data: any }) => api.post(`/agents/${agentId}/response-format/test`, data),
+  generate: (agentId: string, data: { description: string }) => api.post(`/agents/${agentId}/response-format/generate`, data),
 }
 
 export default api
