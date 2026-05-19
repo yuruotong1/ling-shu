@@ -59,12 +59,15 @@ class OptimizeRequest(BaseModel):
 @router.get("", response_model=list[TraceOut])
 async def list_traces(
     agent_name: str | None = Query(None),
+    agent_id: uuid.UUID | None = Query(None),
     limit: int = Query(100, le=500),
     db: AsyncSession = Depends(get_db),
 ):
     q = select(Trace).order_by(Trace.created_at.desc()).limit(limit)
     if agent_name:
         q = q.where(Trace.agent_name == agent_name)
+    if agent_id:
+        q = q.where(Trace.agent_id == agent_id)
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -201,7 +204,7 @@ async def continue_trace(
     if mc is None:
         raise HTTPException(500, "No model config available")
 
-    output, new_trace_id, loop_steps = await agent_runner.run_agent(
+    output, new_trace_id, loop_steps, _ = await agent_runner.run_agent(
         agent=agent,
         mc=mc,
         messages=history,

@@ -1,6 +1,6 @@
 """评估器 + 数据集管理API"""
 import uuid
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from app.core.database import get_db
@@ -57,8 +57,14 @@ async def delete_evaluator(ev_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 # ---- 评估集 ----
 
 @router.get("/evaluation-sets", response_model=list[EvalSetOut])
-async def list_eval_sets(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(EvaluationSet))
+async def list_eval_sets(
+    agent_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(EvaluationSet)
+    if agent_id:
+        q = q.where(EvaluationSet.agent_id == agent_id)
+    result = await db.execute(q)
     sets = result.scalars().all()
     out = []
     for s in sets:

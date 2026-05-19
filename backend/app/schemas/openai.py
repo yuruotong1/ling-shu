@@ -18,6 +18,7 @@ class ChatRequest(BaseModel):
     stream: bool = False
     tools: list[dict] | None = None
     tool_choice: Any = None
+    session_id: str | None = None
 
 
 class ChatChoice(BaseModel):
@@ -40,6 +41,7 @@ class ChatResponse(BaseModel):
     choices: list[ChatChoice]
     usage: ChatUsage
     trace_id: str | None = None
+    session_id: str | None = None
 
 
 class ModelObject(BaseModel):

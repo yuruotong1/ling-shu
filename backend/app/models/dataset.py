@@ -14,6 +14,7 @@ class EvaluationSet(Base):
     description: Mapped[str] = mapped_column(Text, default="")
     data_type: Mapped[str] = mapped_column(String(20), default="agent")
     target_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("agents.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

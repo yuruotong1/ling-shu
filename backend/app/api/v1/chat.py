@@ -36,13 +36,25 @@ async def chat_completions(
             raise HTTPException(status_code=500, detail="No active model config found")
 
         messages_dicts = [m.model_dump(exclude_none=True) for m in request.messages]
-        output, trace_id, _ = await agent_runner.run_agent(
+        # 解析客户端传来的 session_id，非法时自动丢弃
+        session_id: uuid.UUID | None = None
+        if request.session_id:
+            try:
+                session_id = uuid.UUID(request.session_id)
+            except ValueError:
+                pass
+        # 如果没有传或传了非法值，自己生成一个，保证后续能返回给客户端
+        if session_id is None:
+            session_id = uuid.uuid4()
+
+        output, trace_id, _, session_id = await agent_runner.run_agent(
             agent=agent,
             mc=mc,
             messages=messages_dicts,
             db=db,
             temperature=request.temperature,
             max_tokens=request.max_tokens,
+            session_id=session_id,
         )
         return ChatResponse(
             id=f"chatcmpl-{uuid.uuid4().hex[:8]}",
@@ -51,6 +63,7 @@ async def chat_completions(
             choices=[ChatChoice(message=ChatMessage(role="assistant", content=output))],
             usage=ChatUsage(),
             trace_id=trace_id,
+            session_id=str(session_id),
         )
     else:
         # 透传到配置的模型

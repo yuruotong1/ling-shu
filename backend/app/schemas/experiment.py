@@ -7,6 +7,7 @@ class ExperimentCreate(BaseModel):
     name: str
     evaluator_id: uuid.UUID
     eval_set_id: uuid.UUID
+    agent_id: uuid.UUID | None = None
     target_type: str  # agent/skill
     target_name: str
     target_version: int | None = None
@@ -17,6 +18,7 @@ class ExperimentOut(BaseModel):
     name: str
     evaluator_id: uuid.UUID
     eval_set_id: uuid.UUID
+    agent_id: uuid.UUID | None = None
     target_type: str
     target_name: str
     target_version: int | None

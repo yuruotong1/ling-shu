@@ -359,27 +359,18 @@ async def test_agent(agent_id: uuid.UUID, body: AgentTestRequest, db: AsyncSessi
         turns = turns_result.scalars().all()
         if turns:
             turn_index = max(t.turn_index for t in turns) + 1
-            # 重建多轮消息历史
-            history: list[dict] = []
-            for t in turns:
-                user_msg = next((m for m in reversed(t.input or []) if m.get("role") == "user"), None)
-                history.append({"role": "user", "content": user_msg.get("content", "") if user_msg else ""})
-                history.append({"role": "assistant", "content": t.output})
-            # 加上当前最新消息
-            last_user_msg = next((m for m in reversed(body.messages) if m.get("role") == "user"), None)
-            if last_user_msg:
-                history.append({"role": "user", "content": last_user_msg.get("content", "")})
-            output, trace_id, loop_steps = await agent_runner.run_agent(
-                agent=agent, mc=mc, messages=history, db=db,
-                session_id=session_id, turn_index=turn_index,
-            )
-            return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}
+        # 客户端自行维护对话历史，后端不再重建，直接使用传入的 messages
+        output, trace_id, loop_steps, session_id = await agent_runner.run_agent(
+            agent=agent, mc=mc, messages=body.messages, db=db,
+            session_id=session_id, turn_index=turn_index,
+        )
+        return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}
 
     # 新建会话
     if session_id is None:
         session_id = uuid.uuid4()
 
-    output, trace_id, loop_steps = await agent_runner.run_agent(
+    output, trace_id, loop_steps, session_id = await agent_runner.run_agent(
         agent=agent, mc=mc, messages=body.messages, db=db,
         session_id=session_id, turn_index=turn_index,
     )

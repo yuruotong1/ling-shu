@@ -43,6 +43,7 @@ class EvalSetCreate(BaseModel):
     description: str = ""
     data_type: str = "agent"
     target_name: str | None = None
+    agent_id: uuid.UUID | None = None
 
 
 class EvalItemCreate(BaseModel):
@@ -61,6 +62,7 @@ class EvalSetOut(BaseModel):
     description: str
     data_type: str
     target_name: str | None
+    agent_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
     item_count: int = 0

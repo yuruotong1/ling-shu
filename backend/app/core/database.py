@@ -62,6 +62,8 @@ async def init_db():
             "ALTER TABLE traces ADD COLUMN user_rating TEXT",
             "ALTER TABLE traces ADD COLUMN reference_output TEXT",
             "ALTER TABLE agent_versions ADD COLUMN skills_snapshot TEXT DEFAULT '[]'",
+            "ALTER TABLE evaluation_sets ADD COLUMN agent_id TEXT",
+            "ALTER TABLE experiments ADD COLUMN agent_id TEXT",
         ]:
             try:
                 await conn.execute(text(stmt))

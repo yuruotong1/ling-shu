@@ -64,32 +64,30 @@
               <span class="meta-item"><b>鉴权方式：</b>Bearer Token</span>
             </div>
           </div>
-          <el-tabs v-model="codeLang" class="code-tabs">
-            <el-tab-pane label="Python" name="python">
-              <div class="code-block-wrap">
-                <el-button class="copy-btn" size="small" @click="copyCode('python')">复制</el-button>
-                <pre class="code-block">{{ codeSnippets.python }}</pre>
-              </div>
-            </el-tab-pane>
-            <el-tab-pane label="JavaScript" name="js">
-              <div class="code-block-wrap">
-                <el-button class="copy-btn" size="small" @click="copyCode('js')">复制</el-button>
-                <pre class="code-block">{{ codeSnippets.js }}</pre>
-              </div>
-            </el-tab-pane>
-            <el-tab-pane label="Java" name="java">
-              <div class="code-block-wrap">
-                <el-button class="copy-btn" size="small" @click="copyCode('java')">复制</el-button>
-                <pre class="code-block">{{ codeSnippets.java }}</pre>
-              </div>
-            </el-tab-pane>
-            <el-tab-pane label="Go" name="go">
-              <div class="code-block-wrap">
-                <el-button class="copy-btn" size="small" @click="copyCode('go')">复制</el-button>
-                <pre class="code-block">{{ codeSnippets.go }}</pre>
-              </div>
-            </el-tab-pane>
-          </el-tabs>
+          <div class="code-tabs">
+            <el-radio-group v-model="codeLang" size="small" style="margin-bottom: 12px;">
+              <el-radio-button label="python">Python</el-radio-button>
+              <el-radio-button label="js">JavaScript</el-radio-button>
+              <el-radio-button label="java">Java</el-radio-button>
+              <el-radio-button label="go">Go</el-radio-button>
+            </el-radio-group>
+            <div v-show="codeLang === 'python'" class="code-block-wrap">
+              <el-button class="copy-btn" size="small" @click="copyCode('python')">复制</el-button>
+              <pre class="code-block">{{ codeSnippets.python }}</pre>
+            </div>
+            <div v-show="codeLang === 'js'" class="code-block-wrap">
+              <el-button class="copy-btn" size="small" @click="copyCode('js')">复制</el-button>
+              <pre class="code-block">{{ codeSnippets.js }}</pre>
+            </div>
+            <div v-show="codeLang === 'java'" class="code-block-wrap">
+              <el-button class="copy-btn" size="small" @click="copyCode('java')">复制</el-button>
+              <pre class="code-block">{{ codeSnippets.java }}</pre>
+            </div>
+            <div v-show="codeLang === 'go'" class="code-block-wrap">
+              <el-button class="copy-btn" size="small" @click="copyCode('go')">复制</el-button>
+              <pre class="code-block">{{ codeSnippets.go }}</pre>
+            </div>
+          </div>
         </el-card>
       </el-tab-pane>
 
@@ -137,7 +135,7 @@
               取消固定（恢复最新）
             </el-button>
           </div>
-          <el-table :data="versions" v-loading="vLoading">
+          <el-table :data="versions" :loading="vLoading">
             <el-table-column label="版本" width="90">
               <template #default="{ row }">
                 <span>v{{ row.version }}</span>
@@ -166,15 +164,107 @@
             </el-table-column>
             <el-table-column label="操作" width="220">
               <template #default="{ row }">
-                <el-button size="small" @click="handleRollback(row)">回滚（覆盖当前）</el-button>
-                <el-button v-if="authStore.isAdmin" size="small" type="primary"
-                  :disabled="row.id === agent.active_version_id"
-                  @click="handleSetActive(row)">
-                  {{ row.id === agent.active_version_id ? '已上线' : '设为线上' }}
-                </el-button>
-                <el-button v-if="authStore.isAdmin" size="small" type="danger"
-                  :disabled="row.id === agent.active_version_id"
-                  @click="handleDeleteVersion(row)">删除</el-button>
+                <template v-if="row._isCurrent">
+                  <el-tag size="small" type="success">当前版本</el-tag>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="handleRollback(row)">回滚（覆盖当前）</el-button>
+                  <el-button v-if="authStore.isAdmin" size="small" type="primary"
+                    :disabled="row.id === agent.active_version_id"
+                    @click="handleSetActive(row)">
+                    {{ row.id === agent.active_version_id ? '已上线' : '设为线上' }}
+                  </el-button>
+                  <el-button v-if="authStore.isAdmin" size="small" type="danger"
+                    :disabled="row.id === agent.active_version_id"
+                    @click="handleDeleteVersion(row)">删除</el-button>
+                </template>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="调用链路" name="traces">
+        <el-card>
+          <el-table :data="agentTraces" :loading="tracesLoading" class="data-table">
+            <el-table-column label="输入摘要" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span>{{ getTraceSummary(row) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="输出" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.output?.slice(0, 60) }}</template>
+            </el-table-column>
+            <el-table-column label="类型" width="90">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.session_id ? 'primary' : 'info'">{{ row.session_id ? '多轮' : '单轮' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="耗时" width="90">
+              <template #default="{ row }">{{ row.latency_ms }}ms</template>
+            </el-table-column>
+            <el-table-column label="时间" width="170">
+              <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="100" align="center">
+              <template #default="{ row }">
+                <el-button link size="small" @click="openTraceDetail(row)">查看</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="评估数据集" name="datasets">
+        <el-card>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span class="label">评估数据集</span>
+            <el-button type="primary" size="small" @click="showCreateEvalSet = true">创建数据集</el-button>
+          </div>
+          <el-table :data="agentEvalSets" :loading="evalSetsLoading" class="data-table">
+            <el-table-column prop="name" label="名称" />
+            <el-table-column prop="description" label="描述" show-overflow-tooltip />
+            <el-table-column label="样本数" width="90" align="center">
+              <template #default="{ row }">{{ row.item_count || 0 }}</template>
+            </el-table-column>
+            <el-table-column label="时间" width="170">
+              <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="150" align="center">
+              <template #default="{ row }">
+                <el-button link size="small" @click="openEvalSet(row)">查看</el-button>
+                <el-button link type="danger" size="small" @click="deleteEvalSet(row)">删除</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="实验对比" name="experiments">
+        <el-card>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <span class="label">实验对比</span>
+            <el-button type="primary" size="small" @click="showCreateExperiment = true">创建实验</el-button>
+          </div>
+          <el-table :data="agentExperiments" :loading="experimentsLoading" class="data-table">
+            <el-table-column prop="name" label="名称" />
+            <el-table-column label="评估器" width="120">
+              <template #default="{ row }">{{ row.evaluator?.name || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" :type="row.status === 'completed' ? 'success' : row.status === 'running' ? 'warning' : 'info'">{{ row.status }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="均分" width="80" align="center">
+              <template #default="{ row }">{{ row.avg_score != null ? (row.avg_score * 100).toFixed(0) + '分' : '—' }}</template>
+            </el-table-column>
+            <el-table-column label="时间" width="170">
+              <template #default="{ row }">{{ new Date(row.created_at).toLocaleString('zh-CN') }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="{ row }">
+                <el-button link size="small" @click="router.push(`/experiments/${row.id}`)">详情</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -287,18 +377,58 @@
         <el-button type="primary" @click="handleCreateSkill" :loading="skillSaving">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- 创建评估集对话框 -->
+    <el-dialog v-model="showCreateEvalSet" title="创建评估数据集" width="500px" destroy-on-close>
+      <el-form :model="evalSetForm" label-width="80px">
+        <el-form-item label="名称" required>
+          <el-input v-model="evalSetForm.name" placeholder="数据集名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="evalSetForm.description" placeholder="描述该数据集的用途..." />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateEvalSet = false">取消</el-button>
+        <el-button type="primary" @click="createEvalSet">创建</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 创建实验对话框 -->
+    <el-dialog v-model="showCreateExperiment" title="创建实验" width="500px" destroy-on-close>
+      <el-form :model="experimentForm" label-width="100px">
+        <el-form-item label="名称" required>
+          <el-input v-model="experimentForm.name" placeholder="实验名称" />
+        </el-form-item>
+        <el-form-item label="评估器" required>
+          <el-select v-model="experimentForm.evaluator_id" placeholder="选择评估器" style="width:100%">
+            <el-option v-for="e in allEvaluators" :key="e.id" :label="e.name" :value="e.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="数据集" required>
+          <el-select v-model="experimentForm.eval_set_id" placeholder="选择数据集" style="width:100%">
+            <el-option v-for="s in agentEvalSets" :key="s.id" :label="s.name" :value="s.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreateExperiment = false">取消</el-button>
+        <el-button type="primary" @click="createExperiment">创建</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { agentApi, skillApi, agentFormatApi } from '@/api'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { agentApi, skillApi, agentFormatApi, traceApi, evalSetApi, experimentApi, evaluatorApi } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAuthStore()
 const agent = ref<any>(null)
 const versions = ref<any[]>([])
@@ -331,6 +461,17 @@ const skillForm = ref({ name: '', description: '', prompt: '' })
 const showVersionDetail = ref(false)
 const versionDetail = ref<any>(null)
 
+const agentTraces = ref<any[]>([])
+const tracesLoading = ref(false)
+const agentEvalSets = ref<any[]>([])
+const evalSetsLoading = ref(false)
+const showCreateEvalSet = ref(false)
+const evalSetForm = ref({ name: '', description: '' })
+const agentExperiments = ref<any[]>([])
+const experimentsLoading = ref(false)
+const showCreateExperiment = ref(false)
+const experimentForm = ref({ name: '', evaluator_id: '', eval_set_id: '' })
+const allEvaluators = ref<any[]>([])
 
 const baseUrl = computed(() => `${window.location.protocol}//${window.location.hostname}:8000`)
 
@@ -444,8 +585,36 @@ const load = async () => {
   formatError.value = ''
   vLoading.value = true
   const vr = await agentApi.versions(route.params.id as string)
-  versions.value = vr.data
+  // 将当前版本作为第一条记录插入版本历史
+  const currentVersion = {
+    id: agent.value.id,
+    version: agent.value.version,
+    system_prompt: agent.value.system_prompt,
+    change_summary: '当前版本',
+    skills_snapshot: (agent.value.skills || []).map((s: any) => ({ id: s.id, name: s.name, description: s.description })),
+    created_at: agent.value.updated_at,
+    _isCurrent: true,
+  }
+  versions.value = [currentVersion, ...vr.data]
   vLoading.value = false
+
+  // 加载关联数据
+  tracesLoading.value = true
+  evalSetsLoading.value = true
+  experimentsLoading.value = true
+  const [tr, esr, exr, evr] = await Promise.all([
+    traceApi.list(undefined, route.params.id as string).catch(() => ({ data: [] })),
+    evalSetApi.list(route.params.id as string).catch(() => ({ data: [] })),
+    experimentApi.list(route.params.id as string).catch(() => ({ data: [] })),
+    evaluatorApi.list().catch(() => ({ data: [] })),
+  ])
+  agentTraces.value = tr.data
+  tracesLoading.value = false
+  agentEvalSets.value = esr.data
+  evalSetsLoading.value = false
+  agentExperiments.value = exr.data
+  experimentsLoading.value = false
+  allEvaluators.value = evr.data
 }
 
 const handleUpdate = async () => {
@@ -638,6 +807,77 @@ const handleCreateSkill = async () => {
     ElMessage.error(e.response?.data?.detail || '创建失败')
   } finally {
     skillSaving.value = false
+  }
+}
+
+const getTraceSummary = (trace: any) => {
+  const msgs: any[] = trace.input || []
+  const last = msgs.filter((m: any) => m.role === 'user').pop()
+  return last?.content || ''
+}
+
+const openTraceDetail = (row: any) => {
+  window.open(`/#/traces?highlight=${row.id}`, '_blank')
+}
+
+const openEvalSet = (row: any) => {
+  window.open(`/#/datasets?highlight=${row.id}`, '_blank')
+}
+
+const deleteEvalSet = async (row: any) => {
+  try {
+    await ElMessageBox.confirm(`确认删除数据集 "${row.name}"？`, '删除确认', { type: 'warning' })
+    await evalSetApi.delete(row.id)
+    ElMessage.success('已删除')
+    await load()
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.response?.data?.detail || '删除失败')
+  }
+}
+
+const createEvalSet = async () => {
+  if (!evalSetForm.value.name.trim()) {
+    ElMessage.warning('请输入数据集名称')
+    return
+  }
+  try {
+    await evalSetApi.create({
+      ...evalSetForm.value,
+      agent_id: agent.value.id,
+      target_name: agent.value.name,
+    })
+    ElMessage.success('创建成功')
+    showCreateEvalSet.value = false
+    evalSetForm.value = { name: '', description: '' }
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '创建失败')
+  }
+}
+
+const createExperiment = async () => {
+  if (!experimentForm.value.name.trim()) {
+    ElMessage.warning('请输入实验名称')
+    return
+  }
+  if (!experimentForm.value.evaluator_id || !experimentForm.value.eval_set_id) {
+    ElMessage.warning('请选择评估器和数据集')
+    return
+  }
+  try {
+    await experimentApi.create({
+      ...experimentForm.value,
+      agent_id: agent.value.id,
+      target_type: 'agent',
+      target_name: agent.value.name,
+      target_version: agent.value.version,
+    })
+    ElMessage.success('创建成功')
+    showCreateExperiment.value = false
+    experimentForm.value = { name: '', evaluator_id: '', eval_set_id: '' }
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '创建失败')
   }
 }
 

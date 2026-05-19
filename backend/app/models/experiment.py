@@ -13,6 +13,7 @@ class Experiment(Base):
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     evaluator_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("evaluators.id"))
     eval_set_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("evaluation_sets.id"))
+    agent_id: Mapped[uuid.UUID | None] = mapped_column(Uuid(as_uuid=True), ForeignKey("agents.id"), nullable=True)
     target_type: Mapped[str] = mapped_column(String(20), nullable=False)
     target_name: Mapped[str] = mapped_column(String(100), nullable=False)
     target_version: Mapped[int | None] = mapped_column(Integer, nullable=True)

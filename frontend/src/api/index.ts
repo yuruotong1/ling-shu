@@ -86,7 +86,7 @@ export const evaluatorApi = {
 
 // ---- Evaluation Set ----
 export const evalSetApi = {
-  list: () => api.get('/evaluation-sets'),
+  list: (agentId?: string) => api.get('/evaluation-sets', { params: { agent_id: agentId } }),
   create: (data: any) => api.post('/evaluation-sets', data),
   delete: (id: string) => api.delete(`/evaluation-sets/${id}`),
   listItems: (setId: string) => api.get(`/evaluation-sets/${setId}/items`),
@@ -96,7 +96,7 @@ export const evalSetApi = {
 
 // ---- Experiment ----
 export const experimentApi = {
-  list: () => api.get('/experiments'),
+  list: (agentId?: string) => api.get('/experiments', { params: { agent_id: agentId } }),
   create: (data: any) => api.post('/experiments', data),
   get: (id: string) => api.get(`/experiments/${id}`),
   run: (id: string) => api.post(`/experiments/${id}/run`),
@@ -108,7 +108,7 @@ export const experimentApi = {
 
 // ---- Trace ----
 export const traceApi = {
-  list: (agentName?: string) => api.get('/traces', { params: { agent_name: agentName } }),
+  list: (agentName?: string, agentId?: string) => api.get('/traces', { params: { agent_name: agentName, agent_id: agentId } }),
   get: (id: string) => api.get(`/traces/${id}`),
   delete: (id: string) => api.delete(`/traces/${id}`),
   batchDelete: (ids: string[]) => api.post('/traces/batch-delete', { trace_ids: ids }),

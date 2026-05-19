@@ -143,9 +143,17 @@
             <el-descriptions-item label="循环次数">{{ activeRow.total_loops }}</el-descriptions-item>
           </el-descriptions>
 
-          <!-- 输入 -->
-          <div class="section-label">用户输入</div>
-          <div class="output-box" style="margin-bottom:12px">{{ getUserMsg(activeRow) }}</div>
+          <!-- 完整对话流 -->
+          <div v-for="(msg, idx) in activeRow.input" :key="idx" style="margin-bottom:12px">
+            <template v-if="msg.role === 'user'">
+              <div class="section-label">用户</div>
+              <div class="output-box">{{ msg.content }}</div>
+            </template>
+            <template v-else-if="msg.role === 'assistant'">
+              <div class="section-label">Agent（历史）</div>
+              <div class="output-box">{{ msg.content }}</div>
+            </template>
+          </div>
 
           <!-- 输出 & 评分 -->
           <div class="section-label" style="display:flex;justify-content:space-between;align-items:center">

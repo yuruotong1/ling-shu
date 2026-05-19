@@ -34,7 +34,7 @@ async def _run_target(
         agent = result.scalar_one_or_none()
         if agent is None:
             return f"Agent '{target_name}' not found"
-        output, _, _ = await agent_runner.run_agent(agent, mc, messages, db)
+        output, _, _, _ = await agent_runner.run_agent(agent, mc, messages, db)
         return output
     else:
         result = await db.execute(select(Skill).where(Skill.name == target_name))

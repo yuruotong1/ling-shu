@@ -70,7 +70,7 @@
               取消固定（恢复最新）
             </el-button>
           </div>
-          <el-table :data="versions" v-loading="vLoading">
+          <el-table :data="versions" :loading="vLoading">
             <el-table-column label="版本" width="90">
               <template #default="{ row }">
                 <span>v{{ row.version }}</span>
@@ -96,15 +96,20 @@
             </el-table-column>
             <el-table-column label="操作" width="220">
               <template #default="{ row }">
-                <el-button size="small" @click="handleRollback(row)">回滚（覆盖当前）</el-button>
-                <el-button size="small" type="primary"
-                  :disabled="row.id === skill.active_version_id"
-                  @click="handleSetActive(row)">
-                  {{ row.id === skill.active_version_id ? '已上线' : '设为线上' }}
-                </el-button>
-                <el-button size="small" type="danger"
-                  :disabled="row.id === skill.active_version_id"
-                  @click="handleDeleteVersion(row)">删除</el-button>
+                <template v-if="row._isCurrent">
+                  <el-tag size="small" type="success">当前版本</el-tag>
+                </template>
+                <template v-else>
+                  <el-button size="small" @click="handleRollback(row)">回滚（覆盖当前）</el-button>
+                  <el-button size="small" type="primary"
+                    :disabled="row.id === skill.active_version_id"
+                    @click="handleSetActive(row)">
+                    {{ row.id === skill.active_version_id ? '已上线' : '设为线上' }}
+                  </el-button>
+                  <el-button size="small" type="danger"
+                    :disabled="row.id === skill.active_version_id"
+                    @click="handleDeleteVersion(row)">删除</el-button>
+                </template>
               </template>
             </el-table-column>
           </el-table>
@@ -160,7 +165,17 @@ const load = async () => {
   editForm.value = { name: skill.value.name, description: skill.value.description || '', prompt: skill.value.prompt, bound_items: [...tool_items, ...kb_items], change_summary: '' }
   vLoading.value = true
   const vr = await skillApi.versions(route.params.id as string)
-  versions.value = vr.data
+  const currentVersion = {
+    id: skill.value.id,
+    version: skill.value.version,
+    prompt: skill.value.prompt,
+    change_summary: '当前版本',
+    created_by: 'user',
+    eval_score: skill.value.eval_score,
+    created_at: skill.value.updated_at,
+    _isCurrent: true,
+  }
+  versions.value = [currentVersion, ...vr.data]
   vLoading.value = false
 }
 

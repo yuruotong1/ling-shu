@@ -71,9 +71,9 @@ async def run_agent(
     max_tokens: int | None = None,
     session_id: uuid.UUID | None = None,
     turn_index: int = 0,
-) -> tuple[str, str, list[dict]]:
+) -> tuple[str, str, list[dict], uuid.UUID]:
     """
-    执行Agent循环，返回 (output_content, trace_id, loop_steps)
+    执行Agent循环，返回 (output_content, trace_id, loop_steps, session_id)
     """
     start_time = time.time()
     skills: list[Skill] = agent.skills or []
@@ -219,4 +219,4 @@ async def run_agent(
     db.add(trace)
     await db.commit()
 
-    return final_output, trace_id, loop_steps
+    return final_output, trace_id, loop_steps, session_id

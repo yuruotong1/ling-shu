@@ -1,6 +1,6 @@
 """实验管理API：创建实验、运行评估、版本对比、自动迭代"""
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
@@ -15,8 +15,14 @@ router = APIRouter(prefix="/experiments", tags=["experiments"])
 
 
 @router.get("", response_model=list[ExperimentOut])
-async def list_experiments(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Experiment).order_by(Experiment.created_at.desc()))
+async def list_experiments(
+    agent_id: uuid.UUID | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+):
+    q = select(Experiment).order_by(Experiment.created_at.desc())
+    if agent_id:
+        q = q.where(Experiment.agent_id == agent_id)
+    result = await db.execute(q)
     return result.scalars().all()
 
 
