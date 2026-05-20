@@ -1,10 +1,11 @@
-"""工具执行器：HTTP多步骤工具 + 内置知识库操作"""
+"""工具执行器：HTTP多步骤工具 + 内置知识库操作 + Plugin 插件"""
 import re
 import json
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.tool import Tool
+from app.plugin_engine import PluginEngine
 
 # KB 内置操作定义
 _KB_STEP_DEFS = [
@@ -82,6 +83,36 @@ def tool_to_function_defs(tool: Tool) -> list[dict]:
             }
             for sd in _KB_STEP_DEFS
         ]
+
+    if tool.tool_type == "plugin":
+        # plugin 类型：从 plugin_functions 或动态加载获取
+        try:
+            funcs = tool.plugin_functions or []
+            if not funcs:
+                funcs = PluginEngine.get_plugin_tools(tool)
+            return [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": _sanitize_fn_name(f["name"]),
+                        "description": f.get("description", ""),
+                        "parameters": f.get("schema") or {"type": "object", "properties": {}},
+                    },
+                }
+                for f in funcs
+            ]
+        except Exception:
+            # 插件未加载或损坏时返回占位，避免阻塞整体流程
+            return [
+                {
+                    "type": "function",
+                    "function": {
+                        "name": _sanitize_fn_name(tool.name),
+                        "description": f"{tool.description}（插件暂不可用）",
+                        "parameters": {"type": "object", "properties": {}},
+                    },
+                }
+            ]
 
     steps = tool.steps or []
     if steps:
@@ -205,6 +236,14 @@ async def run_tool(tool: Tool, fn_name: str, params: dict, db: AsyncSession | No
         if op not in {"search", "add", "delete", "list"}:
             op = params.get("operation", "search")
         return await _run_builtin_kb_op(tool.kb_namespace or "", op, params, db)
+
+    if tool.tool_type == "plugin":
+        # plugin 类型：通过 PluginEngine 执行
+        result = await PluginEngine.execute(tool, fn_name, params)
+        # 统一序列化为字符串（兼容现有调用链）
+        if isinstance(result, str):
+            return result
+        return json.dumps(result, ensure_ascii=False, default=str)
 
     steps = tool.steps or []
     if steps:

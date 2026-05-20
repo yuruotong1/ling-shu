@@ -12,7 +12,7 @@ class Tool(Base):
     id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    api_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    api_url: Mapped[str] = mapped_column(String(1000), nullable=False, default="")
     method: Mapped[str] = mapped_column(String(10), default="POST")
     input_schema: Mapped[dict] = mapped_column(JSON, default=dict)
     output_schema: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -21,6 +21,12 @@ class Tool(Base):
     kb_namespace: Mapped[str | None] = mapped_column(String(200), nullable=True)
     kb_operation: Mapped[str | None] = mapped_column(String(50), nullable=True)
     steps: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+
+    # ── plugin 类型专用字段 ──
+    plugin_entry: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    plugin_path: Mapped[str | None] = mapped_column(Text, nullable=True)
+    plugin_functions: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     call_count: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

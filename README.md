@@ -21,6 +21,7 @@
 - **模型自由**：不绑定任何模型生态，任意模型可接入对比
 - **结构化输出**：为 Agent 定义 JSON Schema，引擎自动校验并容错重试，接口返回格式零崩溃
 - **对话即数据**：多轮对话满意后一键提交，自动触发评估→优化→上线的完整流水线
+- **Plugin SDK**：原生 Python 插件动态加载，复杂逻辑无需外部服务即可接入
 
 ### 1.2 痛点与解决方案
 
@@ -171,6 +172,39 @@ DELETE /api/v1/conversations/{id}                  # 删除会话
   "deployed_version": 3
 }
 ```
+
+---
+
+## 二（续）、v1.2 新增能力
+
+### 2.4 Plugin SDK 插件系统
+
+平台新增 **Python SDK 插件** 接入方式，与原有的 HTTP API 接入并行：
+
+| 接入方式 | 适用场景 | 开发成本 |
+|---------|---------|---------|
+| HTTP API | 已有服务，通过接口暴露能力 | 低（配置即可） |
+| **Plugin SDK** | 需要原生 Python 逻辑（如文档解析、数据计算） | 中（按框架写一个类） |
+
+**使用流程**：
+
+```
+开发者按 SDK 编写 Python 插件类
+        ↓
+  打包为 zip（含 plugin.py + requirements.txt）
+        ↓
+  上传到平台 → 自动解压 → 安装依赖 → 动态加载
+        ↓
+  Agent/Skill 直接调用，与 HTTP 工具无差别
+```
+
+**关键特性**：
+- 一个插件可暴露**多个工具**（`@tool` 装饰多个方法）
+- 支持**第三方依赖**（`requirements.txt` 自动安装）
+- **热更新**：上传新版本后调用 reload 接口即可，无需重启服务
+- **跨平台**：Windows / Linux / macOS 通用
+
+📖 **完整开发文档** → [PLUGIN_SDK.md](./PLUGIN_SDK.md)
 
 ---
 
@@ -502,6 +536,34 @@ Skill本质上就是一个Markdown文件，加载到模型上下文中作为指�
 | 入参Schema | JSON Schema，自动转为Function Calling格式 |
 | 出参Schema | 响应结构定义 |
 | 认证方式 | API Key / Bearer Token / 自定义Header |
+
+#### Plugin SDK 插件（v1.2 新增）
+
+除 HTTP API 外，平台支持通过 **Python SDK** 开发原生插件。开发者按框架编写 Python 代码，打包为 zip 上传，平台自动解压、安装依赖并动态加载，无需重启服务即可使用。
+
+**核心特点**：
+- **跨平台**：不依赖操作系统特性，Windows / Linux / macOS 通用
+- **动态加载**：`importlib` 运行时加载，热更新支持
+- **无缝集成**：插件工具自动纳入 LLM function calling 体系
+
+**快速示例**：
+
+```python
+# plugin.py
+from app.plugin_sdk import BasePlugin, tool
+
+class WordParserPlugin(BasePlugin):
+    name = "word_parser"
+    description = "Word文档解析工具"
+
+    @tool(name="extract_text", description="提取文本", schema={...})
+    async def extract_text(self, content: str) -> dict:
+        return {"text": content}
+```
+
+打包上传后，平台自动暴露为可调用的工具，Agent/Skill 可直接使用。
+
+📖 **完整开发文档** → [PLUGIN_SDK.md](./PLUGIN_SDK.md)
 
 **功能说明**：
 

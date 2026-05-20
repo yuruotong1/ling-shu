@@ -64,6 +64,14 @@ export const toolApi = {
   update: (id: string, data: any) => api.put(`/tools/${id}`, data),
   delete: (id: string) => api.delete(`/tools/${id}`),
   test: (id: string, params: any) => api.post(`/tools/${id}/test`, { params }),
+  uploadPlugin: (id: string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post(`/tools/${id}/upload`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  reloadPlugin: (id: string) => api.post(`/tools/${id}/reload`),
+  getPluginTools: (id: string) => api.get(`/tools/${id}/plugin_tools`),
+  downloadDemo: () => api.get('/tools/download-demo', { responseType: 'blob' }),
 }
 
 // ---- Model Config ----

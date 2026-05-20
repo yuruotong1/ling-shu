@@ -3,11 +3,19 @@
     <div class="page-header">
       <div>
         <h2>工具管理</h2>
-        <p class="subtitle">HTTP/HTTPS外部能力接入，供Skill调用</p>
+        <p class="subtitle">HTTP API 与 Python Plugin SDK 外部能力接入，供 Skill 调用</p>
       </div>
-      <el-button type="primary" @click="openCreate">
-        <el-icon><Plus /></el-icon> 注册工具
-      </el-button>
+      <div style="display:flex;gap:10px">
+        <el-button type="primary" @click="openCreate">
+          <el-icon><Plus /></el-icon> 注册工具
+        </el-button>
+        <el-button type="warning" @click="openUploadPlugin">
+          <el-icon><Upload /></el-icon> 上传插件
+        </el-button>
+        <el-button @click="handleDownloadDemo">
+          <el-icon><Download /></el-icon> 下载示例
+        </el-button>
+      </div>
     </div>
 
     <!-- 内置工具 -->
@@ -66,6 +74,44 @@
                   </div>
                 </el-col>
               </el-row>
+            </template>
+
+            <!-- Plugin 工具：展示插件信息和暴露的工具 -->
+            <template v-else-if="row.tool_type === 'plugin'">
+              <div class="step-section-label">插件信息</div>
+              <div style="margin-bottom:16px">
+                <el-descriptions :column="2" size="small" border>
+                  <el-descriptions-item label="入口文件">{{ row.plugin_entry || 'plugin.py' }}</el-descriptions-item>
+                  <el-descriptions-item label="插件路径">{{ row.plugin_path || '未上传' }}</el-descriptions-item>
+                  <el-descriptions-item label="暴露工具数">{{ (row.plugin_functions || []).length }}</el-descriptions-item>
+                  <el-descriptions-item label="状态">
+                    <el-tag v-if="row.plugin_path" size="small" type="success">已加载</el-tag>
+                    <el-tag v-else size="small" type="info">未上传</el-tag>
+                  </el-descriptions-item>
+                </el-descriptions>
+              </div>
+              <div v-if="(row.plugin_functions || []).length" class="step-section-label">暴露的工具</div>
+              <el-row :gutter="12" style="margin-bottom:16px">
+                <el-col :span="8" v-for="fn in row.plugin_functions" :key="fn.name">
+                  <div class="kb-step-card">
+                    <div class="kb-step-header">
+                      <el-tag size="small" type="warning">{{ fn.name }}</el-tag>
+                    </div>
+                    <div class="kb-step-desc">{{ fn.description || '无描述' }}</div>
+                    <div class="kb-step-params">
+                      <span v-for="k in Object.keys(fn.schema?.properties || {})" :key="k" class="kb-step-param">{{ k }}</span>
+                    </div>
+                  </div>
+                </el-col>
+              </el-row>
+              <div style="padding:4px 0 16px">
+                <el-button size="small" type="warning" @click="openUploadForRow(row)">
+                  <el-icon><Upload /></el-icon> {{ row.plugin_path ? '重新上传插件' : '上传插件' }}
+                </el-button>
+                <el-button v-if="row.plugin_path" size="small" @click="handleReloadPlugin(row)">
+                  <el-icon><RefreshRight /></el-icon> 重新加载
+                </el-button>
+              </div>
             </template>
 
             <!-- HTTP 工具：可编辑操作步骤列表 -->
@@ -141,13 +187,17 @@
       <el-table-column label="类型/方法" width="110">
         <template #default="{ row }">
           <el-tag v-if="row.tool_type === 'builtin_kb'" size="small" type="success">知识库</el-tag>
+          <el-tag v-else-if="row.tool_type === 'plugin'" size="small" type="warning">插件</el-tag>
           <el-tag v-else size="small">{{ row.method }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="API地址 / 知识库" show-overflow-tooltip>
+      <el-table-column label="API地址 / 知识库 / 插件" show-overflow-tooltip>
         <template #default="{ row }">
           <span v-if="row.tool_type === 'builtin_kb'" style="color:#6b7280;font-size:13px">
             {{ row.kb_namespace }} · {{ opLabel(row.kb_operation) }}
+          </span>
+          <span v-else-if="row.tool_type === 'plugin'" style="color:#6b7280;font-size:13px">
+            {{ row.plugin_path || '未上传' }} · {{ (row.plugin_functions || []).length }} 个工具
           </span>
           <span v-else>{{ row.api_url }}</span>
         </template>
@@ -158,9 +208,10 @@
           <el-tag :type="row.is_active ? 'success' : 'info'" size="small">{{ row.is_active ? '启用' : '禁用' }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="200">
+      <el-table-column label="操作" width="260">
         <template #default="{ row }">
-            <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button size="small" @click="openEdit(row)">编辑</el-button>
+          <el-button v-if="row.tool_type === 'plugin'" size="small" type="warning" @click="openUploadForRow(row)">上传插件</el-button>
           <el-button v-if="row.tool_type !== 'builtin_kb'" size="small" type="success" @click="openTest(row)">测试连通</el-button>
           <el-button size="small" type="danger" @click="handleDelete(row)">删除</el-button>
         </template>
@@ -361,8 +412,60 @@
       </el-dialog>
     </el-dialog>
 
+    <!-- 上传插件 -->
+    <el-dialog v-model="showUploadDialog" :title="uploadTargetId ? '上传插件' : '上传插件（自动创建工具）'" width="520px">
+      <el-alert type="info" :closable="false" style="margin-bottom:16px">
+        <template #default>
+          <div style="font-size:13px;line-height:1.6">
+            <p>1. 插件需打包为 <strong>.zip</strong> 格式，根目录包含 <code>plugin.py</code></p>
+            <p>2. 可选包含 <code>requirements.txt</code> 声明第三方依赖</p>
+            <p>3. 上传后平台自动解压、安装依赖、动态加载</p>
+          </div>
+        </template>
+      </el-alert>
+      <el-upload
+        drag
+        :auto-upload="false"
+        :on-change="handleFileChange"
+        :limit="1"
+        accept=".zip"
+        style="width:100%"
+      >
+        <el-icon class="el-icon--upload" style="font-size:48px;color:#909399"><Upload /></el-icon>
+        <div class="el-upload__text">
+          拖拽文件到此处或 <em>点击上传</em>
+        </div>
+        <template #tip>
+          <div class="el-upload__tip">仅支持 .zip 格式</div>
+        </template>
+      </el-upload>
+      <div v-if="uploadResult" style="margin-top:16px">
+        <el-alert :type="uploadResult.success ? 'success' : 'error'" show-icon>
+          <template #title>{{ uploadResult.message }}</template>
+          <div v-if="uploadResult.tools?.length" style="margin-top:8px">
+            <div style="font-size:12px;color:#666;margin-bottom:4px">识别到的工具：</div>
+            <el-tag v-for="t in uploadResult.tools" :key="t.name" size="small" style="margin-right:6px;margin-bottom:4px">{{ t.name }}</el-tag>
+          </div>
+        </el-alert>
+      </div>
+      <template #footer>
+        <el-button @click="showUploadDialog = false">取消</el-button>
+        <el-button type="primary" @click="doUpload" :loading="pluginUploading">上传并安装</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 测试 -->
     <el-dialog v-model="showTestDialog" title="连通测试" width="600px">
+      <template v-if="testingTool?.tool_type === 'plugin' && (testingTool?.plugin_functions || []).length">
+        <el-form-item label="选择工具" style="margin-bottom:12px">
+          <el-select v-model="testFnName" style="width:100%">
+            <el-option v-for="fn in testingTool.plugin_functions" :key="fn.name" :label="fn.name" :value="fn.name">
+              <span>{{ fn.name }}</span>
+              <span style="color:#999;margin-left:8px;font-size:12px">{{ fn.description }}</span>
+            </el-option>
+          </el-select>
+        </el-form-item>
+      </template>
       <el-input v-model="testParamsStr" type="textarea" :rows="4" placeholder='{"key": "value"}' />
       <el-button type="primary" @click="runTest" :loading="testing" style="margin-top:12px">发送请求</el-button>
       <div v-if="testResult" style="margin-top:16px">
@@ -384,16 +487,25 @@ const tools = ref<any[]>([])
 const loading = ref(false)
 const showCreate = ref(false)
 const showTestDialog = ref(false)
+const showUploadDialog = ref(false)
 const creating = ref(false)
 const testing = ref(false)
+const pluginUploading = ref(false)
 const savingId = ref<string | null>(null)
 const testingId = ref<string | null>(null)
 const testParamsStr = ref('{}')
 const testResult = ref<any>(null)
+const testFnName = ref('')
+const testingTool = ref<any>(null)
 const expandedIds = ref<string[]>([])
 const showGenerateSchema = ref(false)
 const schemaDesc = ref('')
 const generatingSchema = ref(false)
+
+// upload plugin state
+const uploadTargetId = ref<string | null>(null)
+const uploadFile = ref<File | null>(null)
+const uploadResult = ref<any>(null)
 
 // per-row edit state
 const editForms = ref<Record<string, any>>({})
@@ -553,8 +665,10 @@ const doGenerateSchema = async () => {
 
 const openTest = (row: any) => {
   testingId.value = row.id
+  testingTool.value = row
   testParamsStr.value = '{}'
   testResult.value = null
+  testFnName.value = (row.plugin_functions || [])[0]?.name || ''
   showTestDialog.value = true
 }
 
@@ -563,12 +677,100 @@ const runTest = async () => {
   testResult.value = null
   try {
     const params = JSON.parse(testParamsStr.value)
+    if (testingTool.value?.tool_type === 'plugin' && testFnName.value) {
+      params.__function_name__ = testFnName.value
+    }
     const r = await toolApi.test(testingId.value!, params)
     testResult.value = r.data
   } catch (e: any) {
     testResult.value = { success: false, error: e.message }
   } finally {
     testing.value = false
+  }
+}
+
+// ---- Plugin Upload ----
+const openUploadPlugin = () => {
+  uploadTargetId.value = null
+  uploadFile.value = null
+  uploadResult.value = null
+  showUploadDialog.value = true
+}
+
+const openUploadForRow = (row: any) => {
+  uploadTargetId.value = row.id
+  uploadFile.value = null
+  uploadResult.value = null
+  showUploadDialog.value = true
+}
+
+const handleFileChange = (uploadFileRaw: any) => {
+  uploadFile.value = uploadFileRaw.raw
+}
+
+const doUpload = async () => {
+  if (!uploadFile.value) {
+    ElMessage.warning('请先选择 .zip 文件')
+    return
+  }
+  pluginUploading.value = true
+  uploadResult.value = null
+  try {
+    let id = uploadTargetId.value
+    // 如果没有指定 tool_id，先创建一个 plugin 类型的工具
+    if (!id) {
+      const createRes = await toolApi.create({
+        name: 'plugin_' + Date.now(),
+        description: 'Python插件',
+        tool_type: 'plugin',
+        api_url: '',
+      })
+      id = createRes.data.id
+      uploadTargetId.value = id
+    }
+    const r = await toolApi.uploadPlugin(id!, uploadFile.value)
+    uploadResult.value = {
+      success: true,
+      message: r.data.message || '上传成功',
+      tools: r.data.tools || [],
+    }
+    ElMessage.success('插件安装成功')
+    await load()
+  } catch (e: any) {
+    uploadResult.value = {
+      success: false,
+      message: e.response?.data?.detail || '上传失败',
+      tools: [],
+    }
+    ElMessage.error(uploadResult.value.message)
+  } finally {
+    pluginUploading.value = false
+  }
+}
+
+const handleReloadPlugin = async (row: any) => {
+  try {
+    const r = await toolApi.reloadPlugin(row.id)
+    ElMessage.success('插件重新加载成功')
+    await load()
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '重新加载失败')
+  }
+}
+
+const handleDownloadDemo = async () => {
+  try {
+    const r = await toolApi.downloadDemo()
+    const blob = new Blob([r.data], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'lingzhu-plugin-demo.zip'
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('示例插件已下载')
+  } catch (e: any) {
+    ElMessage.error('下载失败')
   }
 }
 

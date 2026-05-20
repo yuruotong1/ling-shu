@@ -27,7 +27,6 @@ messages.append({"role": "user", "content": "我的账号余额是多少"})
 response = client.chat.completions.create(
     model="智能客服",
     messages=messages,
-    extra_body={"session_id": session_id} if session_id else {},
 )
 reply = response.choices[0].message.content
 print("Agent:", reply)
@@ -37,8 +36,7 @@ messages.append({"role": "assistant", "content": reply})
 messages.append({"role": "user", "content": "帮我查一下最近的交易记录"})
 response = client.chat.completions.create(
     model="智能客服",
-    messages=messages,
-    extra_body={"session_id": session_id} if session_id else {},
+    messages=messages
 )
 reply = response.choices[0].message.content
 print("Agent:", reply)

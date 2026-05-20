@@ -15,6 +15,9 @@ class ToolCreate(BaseModel):
     kb_namespace: str | None = None
     kb_operation: str | None = None
     steps: list[dict] = []
+    plugin_entry: str | None = None
+    plugin_path: str | None = None
+    plugin_functions: list[dict] = []
 
 
 class ToolUpdate(BaseModel):
@@ -30,6 +33,9 @@ class ToolUpdate(BaseModel):
     kb_namespace: str | None = None
     kb_operation: str | None = None
     steps: list[dict] | None = None
+    plugin_entry: str | None = None
+    plugin_path: str | None = None
+    plugin_functions: list[dict] | None = None
 
 
 class ToolOut(BaseModel):
@@ -45,6 +51,9 @@ class ToolOut(BaseModel):
     kb_namespace: str | None
     kb_operation: str | None
     steps: list[dict] = []
+    plugin_entry: str | None
+    plugin_path: str | None
+    plugin_functions: list[dict] = []
     is_active: bool
     call_count: int
     created_at: datetime

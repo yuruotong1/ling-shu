@@ -64,6 +64,9 @@ async def init_db():
             "ALTER TABLE agent_versions ADD COLUMN skills_snapshot TEXT DEFAULT '[]'",
             "ALTER TABLE evaluation_sets ADD COLUMN agent_id TEXT",
             "ALTER TABLE experiments ADD COLUMN agent_id TEXT",
+            "ALTER TABLE tools ADD COLUMN plugin_entry TEXT",
+            "ALTER TABLE tools ADD COLUMN plugin_path TEXT",
+            "ALTER TABLE tools ADD COLUMN plugin_functions TEXT DEFAULT '[]'",
         ]:
             try:
                 await conn.execute(text(stmt))
