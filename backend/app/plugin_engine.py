@@ -49,7 +49,7 @@ def get_plugin_dir(tool_id: str | uuid.UUID) -> Path:
 
 def extract_plugin_zip(tool_id: str | uuid.UUID, zip_bytes: bytes) -> Path:
     """
-    将 zip 字节流解压到 plugins/{tool_id}/ 目录。
+    将 zip 字节流解压到 plugins/{tool_id}/ 目录，并保留原始 zip 以便后续下载更新。
 
     Returns:
         解压后的目录 Path
@@ -61,14 +61,13 @@ def extract_plugin_zip(tool_id: str | uuid.UUID, zip_bytes: bytes) -> Path:
         shutil.rmtree(plugin_dir)
     plugin_dir.mkdir(parents=True, exist_ok=True)
 
-    zip_path = plugin_dir / "__upload__.zip"
+    zip_path = plugin_dir / "plugin.zip"
     zip_path.write_bytes(zip_bytes)
 
     with zipfile.ZipFile(zip_path, "r") as zf:
         zf.extractall(plugin_dir)
 
-    zip_path.unlink()  # 删除 zip 本身，只保留解压内容
-    logger.info(f"Plugin extracted to {plugin_dir}")
+    logger.info(f"Plugin extracted to {plugin_dir}, original zip kept as plugin.zip")
     return plugin_dir
 
 

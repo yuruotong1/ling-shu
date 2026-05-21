@@ -1,6 +1,7 @@
 """Agent管理API"""
 import uuid
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+import json
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from sqlalchemy.orm import selectinload
@@ -13,6 +14,7 @@ from app.models.model_config import ModelConfig
 from app.models.user import User
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentOut, AgentVersionOut, AgentTestRequest, ResponseFormatUpdate
 from app.services import agent_runner
+from app.core.file_storage import save_upload_file
 
 router = APIRouter(prefix="/agents", tags=["agents"])
 
@@ -333,13 +335,48 @@ async def rollback_agent(agent_id: uuid.UUID, version_id: uuid.UUID, db: AsyncSe
 
 
 @router.post("/{agent_id}/test")
-async def test_agent(agent_id: uuid.UUID, body: AgentTestRequest, db: AsyncSession = Depends(get_db)):
+async def test_agent(agent_id: uuid.UUID, request: Request, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Agent).options(selectinload(Agent.skills)).where(Agent.id == agent_id))
     agent = result.scalar_one_or_none()
     if agent is None:
         raise HTTPException(404, "Agent not found")
 
-    mc_id = body.model_config_id or agent.model_config_id
+    # 解析 multipart 表单（支持文件上传）
+    try:
+        form_data = await request.form()
+    except Exception as e:
+        raise HTTPException(400, f"表单解析失败: {e}")
+
+    messages_raw = form_data.get("messages", "[]")
+    session_id_raw = form_data.get("session_id", None)
+    model_config_id_raw = form_data.get("model_config_id", None)
+
+    try:
+        messages = json.loads(messages_raw)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "messages 不是有效的 JSON 字符串")
+
+    session_id = uuid.UUID(session_id_raw) if session_id_raw else None
+
+    # 保存上传的文件，并将路径附加到最后一条用户消息
+    file_paths = []
+    try:
+        for field_name, value in form_data.multi_items():
+            if field_name in ("messages", "session_id", "model_config_id"):
+                continue
+            if hasattr(value, 'filename') and value.filename:
+                file_path = save_upload_file(f"agent_test/{agent_id}", value, field_name)
+                file_paths.append(file_path)
+    except Exception as e:
+        raise HTTPException(400, f"文件保存失败: {e}")
+
+    if file_paths and messages:
+        last_msg = messages[-1]
+        if last_msg.get("role") == "user":
+            file_info = "\n\n[已上传文件，可在工具调用中使用以下路径]\n" + "\n".join(f"- {fp}" for fp in file_paths)
+            last_msg["content"] = (last_msg.get("content", "") + file_info).strip()
+
+    mc_id = uuid.UUID(model_config_id_raw) if model_config_id_raw else agent.model_config_id
     if mc_id:
         mc_result = await db.execute(select(ModelConfig).where(ModelConfig.id == mc_id))
     else:
@@ -348,7 +385,6 @@ async def test_agent(agent_id: uuid.UUID, body: AgentTestRequest, db: AsyncSessi
     if mc is None:
         raise HTTPException(500, "No model config available")
 
-    session_id = body.session_id
     turn_index = 0
 
     if session_id:
@@ -359,19 +395,18 @@ async def test_agent(agent_id: uuid.UUID, body: AgentTestRequest, db: AsyncSessi
         turns = turns_result.scalars().all()
         if turns:
             turn_index = max(t.turn_index for t in turns) + 1
-        # 客户端自行维护对话历史，后端不再重建，直接使用传入的 messages
         output, trace_id, loop_steps, session_id = await agent_runner.run_agent(
-            agent=agent, mc=mc, messages=body.messages, db=db,
+            agent=agent, mc=mc, messages=messages, db=db,
             session_id=session_id, turn_index=turn_index,
         )
-        return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}
+        return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id), "file_paths": file_paths}
 
     # 新建会话
     if session_id is None:
         session_id = uuid.uuid4()
 
     output, trace_id, loop_steps, session_id = await agent_runner.run_agent(
-        agent=agent, mc=mc, messages=body.messages, db=db,
+        agent=agent, mc=mc, messages=messages, db=db,
         session_id=session_id, turn_index=turn_index,
     )
-    return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id)}
+    return {"output": output, "trace_id": trace_id, "loop_steps": loop_steps, "session_id": str(session_id), "file_paths": file_paths}

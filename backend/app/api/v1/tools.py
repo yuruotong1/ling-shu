@@ -1,13 +1,15 @@
 """Tool管理API"""
 import io
+import json
 import uuid
 import zipfile
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, File
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
+from app.core.file_storage import save_upload_file
 from app.models.tool import Tool
 from app.schemas.tool import ToolCreate, ToolUpdate, ToolOut, ToolTestRequest
 from app.services.tool_runner import run_tool
@@ -121,18 +123,51 @@ async def delete_tool(tool_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
 
 
 @router.post("/{tool_id}/test")
-async def test_tool(tool_id: uuid.UUID, body: ToolTestRequest, db: AsyncSession = Depends(get_db)):
+async def test_tool(
+    tool_id: uuid.UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    测试工具连通性。
+    支持 multipart/form-data，可同时提交 JSON 参数和上传文件。
+    文件会自动保存到 uploads/{tool_id}/ 目录，文件路径注入到对应参数中。
+    """
     result = await db.execute(select(Tool).where(Tool.id == tool_id))
     tool = result.scalar_one_or_none()
     if tool is None:
         raise HTTPException(404, "Tool not found")
+
+    # 解析 multipart 表单
+    try:
+        form_data = await request.form()
+    except Exception as e:
+        raise HTTPException(400, f"表单解析失败: {e}")
+
+    params_raw = form_data.get("params", "{}")
+    try:
+        params_dict = json.loads(params_raw)
+    except json.JSONDecodeError:
+        raise HTTPException(400, "params 不是有效的 JSON 字符串")
+
+    # 处理上传的文件：form 字段名 = 参数名
+    try:
+        for field_name, value in form_data.multi_items():
+            if field_name == "params":
+                continue
+            if hasattr(value, 'filename') and value.filename:
+                file_path = save_upload_file(str(tool_id), value, field_name)
+                params_dict[field_name] = file_path
+    except Exception as e:
+        raise HTTPException(400, f"文件保存失败: {e}")
+
     try:
         # plugin 类型工具需要指定 function_name
-        fn_name = body.params.pop("__function_name__", None)
-        output = await run_tool(tool, fn_name or tool.name, body.params, db)
+        fn_name = params_dict.pop("__function_name__", None)
+        output = await run_tool(tool, fn_name or tool.name, params_dict, db)
         tool.call_count += 1
         await db.commit()
-        return {"success": True, "output": output}
+        return {"success": True, "output": output, "file_paths": {k: v for k, v in params_dict.items() if isinstance(v, str) and 'uploads' in v}}
     except Exception as e:
         return {"success": False, "error": str(e)}
 
@@ -234,4 +269,25 @@ async def get_plugin_tools(tool_id: uuid.UUID, db: AsyncSession = Depends(get_db
         return {"tools": tools_def}
     except Exception as e:
         raise HTTPException(400, detail=str(e))
+
+
+@router.get("/{tool_id}/download")
+async def download_plugin(tool_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    """下载当前插件的原始 zip 包，方便用户修改后重新上传"""
+    result = await db.execute(select(Tool).where(Tool.id == tool_id))
+    tool = result.scalar_one_or_none()
+    if tool is None:
+        raise HTTPException(404, "Tool not found")
+    if tool.tool_type != "plugin":
+        raise HTTPException(400, "该工具不是 plugin 类型")
+
+    zip_path = Path(tool.plugin_path or "") / "plugin.zip"
+    if not zip_path.exists():
+        raise HTTPException(404, "未找到插件原始包，可能该插件是旧版本上传的")
+
+    return StreamingResponse(
+        open(zip_path, "rb"),
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename={tool.name or "plugin"}.zip'},
+    )
 

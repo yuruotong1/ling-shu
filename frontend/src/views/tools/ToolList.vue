@@ -111,6 +111,9 @@
                 <el-button v-if="row.plugin_path" size="small" @click="handleReloadPlugin(row)">
                   <el-icon><RefreshRight /></el-icon> 重新加载
                 </el-button>
+                <el-button v-if="row.plugin_path" size="small" @click="handleDownloadPlugin(row)">
+                  <el-icon><Download /></el-icon> 下载源码包
+                </el-button>
               </div>
             </template>
 
@@ -254,7 +257,7 @@
         <el-form-item label="入参Schema">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span />
-            <el-button size="small" @click="showGenerateSchema = true">🤖 AI 生成 Schema</el-button>
+            <el-button size="small" type="warning" @click="showGenerateTool = true">🤖 AI 一键生成</el-button>
           </div>
           <el-input v-model="createSchemaStr" type="textarea" :rows="5"
             placeholder='{"type":"object","properties":{...}}' />
@@ -266,18 +269,30 @@
       </template>
     </el-dialog>
 
-    <!-- AI 生成 Schema 对话框 -->
-    <el-dialog v-model="showGenerateSchema" title="AI 生成入参 Schema" width="600px">
+    <!-- AI 一键生成工具对话框 -->
+    <el-dialog v-model="showGenerateTool" title="AI 一键生成工具配置" width="650px">
       <el-form label-width="100px">
-        <el-form-item label="描述需求">
-          <el-input v-model="schemaDesc" type="textarea" :rows="4" placeholder="例如：查询订单接口，需要订单号（字符串）、开始时间、结束时间" />
+        <el-form-item label="需求描述">
+          <el-input v-model="toolGenDesc" type="textarea" :rows="4"
+            placeholder="例如：我想做一个查询订单的接口，需要传入订单号（字符串）和日期范围，返回订单详情" />
         </el-form-item>
-        <el-form-item>
-          <el-button type="warning" :loading="generatingSchema" @click="doGenerateSchema">🤖 AI 生成 Schema</el-button>
+        <el-form-item v-if="toolGenResult">
+          <el-alert type="success" :closable="false">
+            <template #title>AI 已生成以下配置，点击「应用」即可填充</template>
+          </el-alert>
+          <el-descriptions :column="1" size="small" border style="margin-top:8px">
+            <el-descriptions-item label="名称">{{ toolGenResult.name }}</el-descriptions-item>
+            <el-descriptions-item label="描述">{{ toolGenResult.description }}</el-descriptions-item>
+            <el-descriptions-item label="API地址">{{ toolGenResult.api_url }}</el-descriptions-item>
+            <el-descriptions-item label="方法">{{ toolGenResult.method }}</el-descriptions-item>
+            <el-descriptions-item label="认证">{{ toolGenResult.auth_type }}</el-descriptions-item>
+          </el-descriptions>
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="showGenerateSchema = false">关闭</el-button>
+        <el-button @click="showGenerateTool = false">关闭</el-button>
+        <el-button v-if="toolGenResult" type="primary" @click="applyGeneratedTool">应用</el-button>
+        <el-button type="warning" :loading="generatingTool" @click="doGenerateTool">🤖 AI 生成</el-button>
       </template>
     </el-dialog>
 
@@ -455,7 +470,7 @@
     </el-dialog>
 
     <!-- 测试 -->
-    <el-dialog v-model="showTestDialog" title="连通测试" width="600px">
+    <el-dialog v-model="showTestDialog" title="连通测试" width="700px">
       <template v-if="testingTool?.tool_type === 'plugin' && (testingTool?.plugin_functions || []).length">
         <el-form-item label="选择工具" style="margin-bottom:12px">
           <el-select v-model="testFnName" style="width:100%">
@@ -466,11 +481,41 @@
           </el-select>
         </el-form-item>
       </template>
-      <el-input v-model="testParamsStr" type="textarea" :rows="4" placeholder='{"key": "value"}' />
-      <el-button type="primary" @click="runTest" :loading="testing" style="margin-top:12px">发送请求</el-button>
+
+      <!-- JSON 参数 -->
+      <div class="label" style="margin-bottom:6px">参数（JSON）</div>
+      <el-input v-model="testParamsStr" type="textarea" :rows="4" placeholder='{"key": "value", "file_path": ""}' />
+
+      <!-- 文件上传 -->
+      <div class="label" style="margin:16px 0 6px">文件参数（可选）</div>
+      <div v-for="(item, idx) in testFiles" :key="idx" style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <el-input v-model="item.paramName" placeholder="参数名，如 file_path" style="width:160px" size="small" />
+        <el-upload
+          :auto-upload="false"
+          :on-change="(raw: any) => handleTestFileChange(idx, raw)"
+          :show-file-list="false"
+          style="flex:1"
+        >
+          <el-button size="small" :type="item.file ? 'success' : 'default'">
+            {{ item.file ? item.file.name : '选择文件' }}
+          </el-button>
+        </el-upload>
+        <el-button size="small" type="danger" text @click="removeTestFile(idx)">
+          <el-icon><Delete /></el-icon>
+        </el-button>
+      </div>
+      <el-button size="small" @click="addTestFile">
+        <el-icon><Plus /></el-icon> 添加文件参数
+      </el-button>
+
+      <el-button type="primary" @click="runTest" :loading="testing" style="margin-top:16px;display:block">发送请求</el-button>
       <div v-if="testResult" style="margin-top:16px">
         <el-alert :type="testResult.success ? 'success' : 'error'"
           :title="testResult.success ? '请求成功' : '请求失败'" show-icon>
+          <div v-if="testResult.file_paths" style="margin-top:8px;font-size:12px;color:#666">
+            <div>文件已保存到:</div>
+            <div v-for="(path, key) in testResult.file_paths" :key="key">{{ key }}: {{ path }}</div>
+          </div>
           <pre style="white-space:pre-wrap;margin-top:8px">{{ testResult.output || testResult.error }}</pre>
         </el-alert>
       </div>
@@ -497,10 +542,12 @@ const testParamsStr = ref('{}')
 const testResult = ref<any>(null)
 const testFnName = ref('')
 const testingTool = ref<any>(null)
+const testFiles = ref<{ paramName: string; file: File | null }[]>([])
 const expandedIds = ref<string[]>([])
-const showGenerateSchema = ref(false)
-const schemaDesc = ref('')
-const generatingSchema = ref(false)
+const showGenerateTool = ref(false)
+const toolGenDesc = ref('')
+const toolGenResult = ref<any>(null)
+const generatingTool = ref(false)
 
 // upload plugin state
 const uploadTargetId = ref<string | null>(null)
@@ -559,6 +606,8 @@ const openCreate = () => {
   createForm.value = { name: '', description: '', api_url: '', method: 'POST', auth_config: {}, input_schema: {} }
   createAuthType.value = 'none'
   createSchemaStr.value = '{"type":"object","properties":{}}'
+  toolGenDesc.value = ''
+  toolGenResult.value = null
   showCreate.value = true
 }
 
@@ -640,27 +689,45 @@ const handleCreate = async () => {
   }
 }
 
-const doGenerateSchema = async () => {
-  if (!schemaDesc.value.trim()) {
-    ElMessage.warning('请先描述入参需求')
+const doGenerateTool = async () => {
+  if (!toolGenDesc.value.trim()) {
+    ElMessage.warning('请先描述功能需求')
     return
   }
-  generatingSchema.value = true
+  generatingTool.value = true
+  toolGenResult.value = null
   try {
-    const r = await aiGenerateApi.schema({ description: schemaDesc.value })
-    const generated = r.data.schema
-    if (generated) {
-      createSchemaStr.value = JSON.stringify(generated, null, 2)
-      ElMessage.success('AI 已生成 Schema，已填充到输入框')
-      showGenerateSchema.value = false
-    } else {
-      ElMessage.error('生成失败，未返回有效 Schema')
-    }
+    const r = await aiGenerateApi.tool({ description: toolGenDesc.value })
+    toolGenResult.value = r.data.tool
+    ElMessage.success('AI 已生成工具配置')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.detail || '生成失败')
   } finally {
-    generatingSchema.value = false
+    generatingTool.value = false
   }
+}
+
+const applyGeneratedTool = () => {
+  const t = toolGenResult.value
+  if (!t) return
+  createForm.value.name = t.name || createForm.value.name
+  createForm.value.description = t.description || createForm.value.description
+  createForm.value.api_url = t.api_url || createForm.value.api_url
+  createForm.value.method = t.method || 'POST'
+  createAuthType.value = t.auth_type || 'none'
+  createForm.value.auth_config = t.auth_config || {}
+  if (t.input_schema) {
+    createSchemaStr.value = JSON.stringify(t.input_schema, null, 2)
+    try {
+      createForm.value.input_schema = JSON.parse(createSchemaStr.value)
+    } catch {
+      createForm.value.input_schema = {}
+    }
+  }
+  showGenerateTool.value = false
+  toolGenDesc.value = ''
+  toolGenResult.value = null
+  ElMessage.success('已填充到表单')
 }
 
 const openTest = (row: any) => {
@@ -669,7 +736,24 @@ const openTest = (row: any) => {
   testParamsStr.value = '{}'
   testResult.value = null
   testFnName.value = (row.plugin_functions || [])[0]?.name || ''
+  testFiles.value = []
   showTestDialog.value = true
+}
+
+const addTestFile = () => {
+  testFiles.value.push({ paramName: '', file: null })
+}
+
+const removeTestFile = (idx: number) => {
+  testFiles.value.splice(idx, 1)
+}
+
+const handleTestFileChange = (idx: number, uploadFileRaw: any) => {
+  const raw = uploadFileRaw.raw
+  testFiles.value[idx].file = raw
+  if (!testFiles.value[idx].paramName) {
+    testFiles.value[idx].paramName = raw.name
+  }
 }
 
 const runTest = async () => {
@@ -680,7 +764,12 @@ const runTest = async () => {
     if (testingTool.value?.tool_type === 'plugin' && testFnName.value) {
       params.__function_name__ = testFnName.value
     }
-    const r = await toolApi.test(testingId.value!, params)
+    const files = testFiles.value.filter(f => f.file).map(f => {
+      // 使用 paramName 作为文件名，方便后端映射
+      const renamed = new File([f.file!], f.paramName || f.file!.name, { type: f.file!.type })
+      return renamed
+    })
+    const r = await toolApi.test(testingId.value!, params, files)
     testResult.value = r.data
   } catch (e: any) {
     testResult.value = { success: false, error: e.message }
@@ -771,6 +860,22 @@ const handleDownloadDemo = async () => {
     ElMessage.success('示例插件已下载')
   } catch (e: any) {
     ElMessage.error('下载失败')
+  }
+}
+
+const handleDownloadPlugin = async (row: any) => {
+  try {
+    const r = await toolApi.downloadPlugin(row.id)
+    const blob = new Blob([r.data], { type: 'application/zip' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${row.name || 'plugin'}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+    ElMessage.success('插件源码包已下载')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '下载失败')
   }
 }
 

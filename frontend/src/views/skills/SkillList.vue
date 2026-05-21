@@ -48,7 +48,10 @@
         <el-form-item label="提示词" required>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
             <span />
-            <AiGeneratePrompt type="skill" @generated="(val: string) => form.prompt = val" />
+            <div style="display:flex;gap:8px">
+              <AiGeneratePrompt type="skill" @generated="(val: string) => form.prompt = val" />
+              <el-button size="small" type="warning" @click="showGenSkill = true">🤖 AI 一键生成</el-button>
+            </div>
           </div>
           <el-input v-model="form.prompt" type="textarea" :rows="10"
             placeholder="# Skill名称&#10;&#10;你是一个专业的...&#10;&#10;## 规则&#10;- ..." />
@@ -69,13 +72,37 @@
         <el-button type="primary" @click="handleCreate" :loading="saving">创建</el-button>
       </template>
     </el-dialog>
+
+    <!-- AI 一键生成 Skill -->
+    <el-dialog v-model="showGenSkill" title="AI 一键生成 Skill" width="650px">
+      <el-form label-width="100px">
+        <el-form-item label="需求描述">
+          <el-input v-model="genSkillDesc" type="textarea" :rows="4"
+            placeholder="例如：我想创建一个用例生成 Skill，根据需求描述自动生成测试用例，包含用例编号、前置条件、操作步骤和预期结果" />
+        </el-form-item>
+        <el-form-item v-if="genSkillResult">
+          <el-alert type="success" :closable="false">
+            <template #title>AI 已生成以下配置，点击「应用」即可填充</template>
+          </el-alert>
+          <el-descriptions :column="1" size="small" border style="margin-top:8px">
+            <el-descriptions-item label="名称">{{ genSkillResult.name }}</el-descriptions-item>
+            <el-descriptions-item label="描述">{{ genSkillResult.description }}</el-descriptions-item>
+          </el-descriptions>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showGenSkill = false">关闭</el-button>
+        <el-button v-if="genSkillResult" type="primary" @click="applyGenSkill">应用</el-button>
+        <el-button type="warning" :loading="genSkillLoading" @click="doGenSkill">🤖 AI 生成</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { skillApi, toolApi, kbApi } from '@/api'
+import { skillApi, toolApi, kbApi, aiGenerateApi } from '@/api'
 import AiGeneratePrompt from '@/components/AiGeneratePrompt.vue'
 
 const skills = ref<any[]>([])
@@ -85,6 +112,12 @@ const loading = ref(false)
 const showCreate = ref(false)
 const saving = ref(false)
 const form = ref({ name: '', description: '', prompt: '', bound_items: [] as string[] })
+
+// AI 一键生成 Skill
+const showGenSkill = ref(false)
+const genSkillDesc = ref('')
+const genSkillResult = ref<any>(null)
+const genSkillLoading = ref(false)
 
 const load = async () => {
   loading.value = true
@@ -113,6 +146,36 @@ const handleCreate = async () => {
   } finally {
     saving.value = false
   }
+}
+
+const doGenSkill = async () => {
+  if (!genSkillDesc.value.trim()) {
+    ElMessage.warning('请先描述功能需求')
+    return
+  }
+  genSkillLoading.value = true
+  genSkillResult.value = null
+  try {
+    const r = await aiGenerateApi.skill({ description: genSkillDesc.value })
+    genSkillResult.value = r.data.skill
+    ElMessage.success('AI 已生成 Skill 配置')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.detail || '生成失败')
+  } finally {
+    genSkillLoading.value = false
+  }
+}
+
+const applyGenSkill = () => {
+  const s = genSkillResult.value
+  if (!s) return
+  form.value.name = s.name || form.value.name
+  form.value.description = s.description || form.value.description
+  form.value.prompt = s.prompt || form.value.prompt
+  showGenSkill.value = false
+  genSkillDesc.value = ''
+  genSkillResult.value = null
+  ElMessage.success('已填充到表单')
 }
 
 const handleDelete = async (row: any) => {

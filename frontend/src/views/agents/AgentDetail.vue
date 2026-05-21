@@ -41,8 +41,8 @@
           </div>
           <div style="margin-bottom:20px">
             <div class="label">绑定Skill</div>
-            <div style="display:flex;gap:8px">
-              <el-select v-model="editForm.skill_ids" multiple placeholder="选择Skill" style="flex:1">
+            <div style="display:flex;gap:8px;align-items:flex-start">
+              <el-select v-model="editForm.skill_ids" multiple placeholder="选择Skill" style="flex:1;min-width:0">
                 <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
               <el-button @click="showCreateSkill = true"><el-icon><Plus /></el-icon> 创建Skill</el-button>
@@ -299,10 +299,20 @@
           </div>
         </div>
         <div class="chat-input-area">
+          <div v-if="testFiles.length" style="margin-bottom:8px;display:flex;flex-wrap:wrap;gap:6px">
+            <el-tag v-for="(file, idx) in testFiles" :key="idx" closable @close="testFiles.splice(idx, 1)">
+              {{ file.name }}
+            </el-tag>
+          </div>
           <el-input v-model="testInput" type="textarea" :rows="3" placeholder="Enter 发送，Shift+Enter 换行" @keydown.enter.exact.prevent="runTest" />
-          <div style="margin-top:8px;display:flex;justify-content:flex-end;gap:8px">
-            <el-button @click="clearTest">清空对话</el-button>
-            <el-button type="primary" @click="runTest" :loading="testing">发送</el-button>
+          <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+            <el-upload v-model:file-list="testFiles" :auto-upload="false" :show-file-list="false" :multiple="true">
+              <el-button size="small"><el-icon><Plus /></el-icon> 上传文件</el-button>
+            </el-upload>
+            <div style="display:flex;gap:8px">
+              <el-button @click="clearTest">清空对话</el-button>
+              <el-button type="primary" @click="runTest" :loading="testing">发送</el-button>
+            </div>
           </div>
         </div>
       </div>
@@ -454,6 +464,7 @@ const testInput = ref('')
 const testMessages = ref<{role: string, content: string, loop_steps?: any[]}[]>([])
 const chatMessagesRef = ref<HTMLElement | null>(null)
 const testSessionId = ref<string | null>(null)
+const testFiles = ref<File[]>([])
 const editForm = ref({ name: '', system_prompt: '', skill_ids: [] as string[], max_loops: 10 })
 const showCreateSkill = ref(false)
 const skillSaving = ref(false)
@@ -769,13 +780,15 @@ const runTest = async () => {
   testing.value = true
   try {
     const messages = testMessages.value.map(m => ({ role: m.role, content: m.content }))
-    const r = await agentApi.test(agent.value.id, { messages, session_id: testSessionId.value })
+    const files = testFiles.value.length ? testFiles.value : undefined
+    const r = await agentApi.test(agent.value.id, { messages, session_id: testSessionId.value }, files)
     testMessages.value.push({
       role: 'assistant',
       content: r.data.output,
       loop_steps: r.data.loop_steps || []
     })
     testSessionId.value = r.data.session_id || null
+    testFiles.value = []
     setTimeout(() => {
       chatMessagesRef.value?.scrollTo({ top: chatMessagesRef.value.scrollHeight, behavior: 'smooth' })
     }, 50)
@@ -791,6 +804,7 @@ const runTest = async () => {
 const clearTest = () => {
   testMessages.value = []
   testSessionId.value = null
+  testFiles.value = []
 }
 
 const handleCreateSkill = async () => {

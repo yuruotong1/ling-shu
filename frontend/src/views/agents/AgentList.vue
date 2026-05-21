@@ -55,8 +55,8 @@
             placeholder="定义Agent的角色、推理规则、可用Skill及适用场景..." />
         </el-form-item>
         <el-form-item label="绑定Skill">
-          <div style="display:flex;gap:8px">
-            <el-select v-model="form.skill_ids" multiple placeholder="选择Skill" style="flex:1">
+          <div style="display:flex;gap:8px;align-items:flex-start">
+            <el-select v-model="form.skill_ids" multiple placeholder="选择Skill" style="flex:1;min-width:0">
               <el-option v-for="s in allSkills" :key="s.id" :label="s.name" :value="s.id" />
             </el-select>
             <el-button @click="showCreateSkill = true"><el-icon><Plus /></el-icon> 创建Skill</el-button>
@@ -113,6 +113,7 @@ const saving = ref(false)
 const showCreateSkill = ref(false)
 const skillSaving = ref(false)
 const form = ref({ name: '', description: '', system_prompt: '', skill_ids: [] as string[], model_config_id: null as string | null, max_loops: 10 })
+
 const skillForm = ref({ name: '', description: '', prompt: '' })
 
 const load = async () => {

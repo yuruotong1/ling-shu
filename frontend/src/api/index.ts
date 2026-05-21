@@ -38,7 +38,19 @@ export const agentApi = {
   setActiveVersion: (id: string, versionId: string) => api.post(`/agents/${id}/versions/${versionId}/set-active`),
   unpinVersion: (id: string) => api.post(`/agents/${id}/versions/unpin`),
   deleteVersion: (id: string, versionId: string) => api.delete(`/agents/${id}/versions/${versionId}`),
-  test: (id: string, data: any) => api.post(`/agents/${id}/test`, data),
+  test: (id: string, data: any, files?: any[]) => {
+    const fd = new FormData()
+    fd.append('messages', JSON.stringify(data.messages))
+    if (data.session_id) fd.append('session_id', data.session_id)
+    if (data.model_config_id) fd.append('model_config_id', data.model_config_id)
+    if (files) {
+      files.forEach((f) => {
+        const raw = f.raw || f
+        fd.append('file', raw)
+      })
+    }
+    return api.post(`/agents/${id}/test`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
 }
 
 // ---- Skill ----
@@ -63,7 +75,14 @@ export const toolApi = {
   get: (id: string) => api.get(`/tools/${id}`),
   update: (id: string, data: any) => api.put(`/tools/${id}`, data),
   delete: (id: string) => api.delete(`/tools/${id}`),
-  test: (id: string, params: any) => api.post(`/tools/${id}/test`, { params }),
+  test: (id: string, params: any, files?: File[]) => {
+    const fd = new FormData()
+    fd.append('params', JSON.stringify(params))
+    if (files) {
+      files.forEach((f) => fd.append(f.name, f))
+    }
+    return api.post(`/tools/${id}/test`, fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
   uploadPlugin: (id: string, file: File) => {
     const fd = new FormData()
     fd.append('file', file)
@@ -72,6 +91,7 @@ export const toolApi = {
   reloadPlugin: (id: string) => api.post(`/tools/${id}/reload`),
   getPluginTools: (id: string) => api.get(`/tools/${id}/plugin_tools`),
   downloadDemo: () => api.get('/tools/download-demo', { responseType: 'blob' }),
+  downloadPlugin: (id: string) => api.get(`/tools/${id}/download`, { responseType: 'blob' }),
 }
 
 // ---- Model Config ----
@@ -167,6 +187,10 @@ export const userApi = {
 export const aiGenerateApi = {
   prompt: (data: { type: string; description: string }) => api.post('/ai-generate/prompt', data),
   schema: (data: { description: string }) => api.post('/ai-generate/schema', data),
+  tool: (data: { description: string }) => api.post('/ai-generate/tool', data),
+  agent: (data: { description: string }) => api.post('/ai-generate/agent', data),
+  skill: (data: { description: string }) => api.post('/ai-generate/skill', data),
+  evaluator: (data: { description: string }) => api.post('/ai-generate/evaluator', data),
 }
 
 // ---- Agent Response Format ----
