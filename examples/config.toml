@@ -1,0 +1,21 @@
+# ~/.ling-shu/config.toml
+# 灵枢引擎配置文件
+
+[server]
+port = 5490          # 服务监听端口，默认 5490
+
+[upstream]
+# 实际调用的上游 API 地址
+base_url = "https://api.deepseek.com"
+# API Key（也可以用 OPENAI_API_KEY 环境变量代替）
+api_key = ""
+# 结构化输出模式：json_schema（OpenAI 原生）或 json_object（DeepSeek/大多数模型）
+response_format = "json_object"
+
+[default]
+# 所有 agent 默认使用的底层模型
+model = "deepseek-chat"
+
+# 每个 agent 可以单独指定模型（可选）
+# [agents.my-agent]
+# model = "deepseek-chat"

@@ -1,0 +1,19 @@
+{
+  "name": "translation_result",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "translation": {
+        "type": "string",
+        "description": "The translated text"
+      },
+      "source_language": {
+        "type": "string",
+        "description": "Detected source language"
+      }
+    },
+    "required": ["translation", "source_language"],
+    "additionalProperties": false
+  }
+}
